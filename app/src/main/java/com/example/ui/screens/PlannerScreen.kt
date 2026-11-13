@@ -37,6 +37,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,8 +54,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.model.StudyTask
 import com.example.data.model.Subject
+import com.example.data.model.TaskType
 import com.example.data.model.TimetableSlot
 import com.example.data.model.UiState
+import com.example.ui.components.TaskCategoryBadge
+import com.example.ui.components.adaptiveCategoryColor
+import com.example.ui.components.categoryIcon
 import com.example.ui.components.dayLabelShort
 import com.example.ui.components.formatDueSummary
 import com.example.ui.components.formatMinutesOfDay
@@ -83,12 +88,15 @@ fun PlannerScreen(
   val slots = (slotsState as? UiState.Success)?.data.orEmpty()
   val tasks = (tasksState as? UiState.Success)?.data.orEmpty()
 
+  val pendingTasks = tasks.filter { !it.completed }
   val filteredTasks =
     when (selectedFilter) {
-      TaskFilter.ALL -> tasks.filter { !it.completed }
-      TaskFilter.ASSIGNMENTS -> tasks.filter { !it.completed && it.type == "ASSIGNMENT" }
-      TaskFilter.EXAMS -> tasks.filter { !it.completed && it.type == "EXAM" }
+      TaskFilter.ALL -> pendingTasks
       TaskFilter.COMPLETED -> tasks.filter { it.completed }
+      else -> {
+        val targetType = selectedFilter.taskType
+        pendingTasks.filter { targetType == null || TaskType.fromRaw(it.type) == targetType }
+      }
     }
 
   LazyColumn(
@@ -258,7 +266,7 @@ fun PlannerScreen(
       }
     }
 
-    // Assignments & Exams Section
+    // Study Tasks & Deadlines Section
     item {
       Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -266,7 +274,7 @@ fun PlannerScreen(
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
         ) {
-          Text("Assignments & Exams", style = MaterialTheme.typography.titleLarge)
+          Text("Study Tasks & Deadlines", style = MaterialTheme.typography.titleLarge)
           FilledTonalButton(
             onClick = onOpenAddTask,
             modifier = Modifier.heightIn(min = 44.dp).testTag("planner_add_task_button"),
@@ -279,10 +287,32 @@ fun PlannerScreen(
 
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           items(TaskFilter.entries) { filter ->
+            val count =
+              when (filter) {
+                TaskFilter.ALL -> pendingTasks.size
+                TaskFilter.COMPLETED -> tasks.count { it.completed }
+                else -> pendingTasks.count { TaskType.fromRaw(it.type) == filter.taskType }
+              }
+            val filterColor = filter.taskType?.adaptiveCategoryColor() ?: MaterialTheme.colorScheme.primary
             FilterChip(
               selected = selectedFilter == filter,
               onClick = { onSelectFilter(filter) },
-              label = { Text(filter.label) },
+              leadingIcon = filter.taskType?.let { t ->
+                {
+                  Icon(
+                    imageVector = t.categoryIcon(),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                  )
+                }
+              },
+              colors =
+                FilterChipDefaults.filterChipColors(
+                  selectedContainerColor = filterColor.copy(alpha = 0.16f),
+                  selectedLabelColor = filterColor,
+                  selectedLeadingIconColor = filterColor,
+                ),
+              label = { Text("${filter.label} ($count)") },
               modifier = Modifier.testTag("task_filter_${filter.name.lowercase()}"),
             )
           }
@@ -317,6 +347,8 @@ fun PlannerScreen(
       }
     } else {
       items(filteredTasks, key = { it.id }) { task ->
+        val taskCategory = TaskType.fromRaw(task.type)
+        val categoryColor = taskCategory.adaptiveCategoryColor()
         with(sharedTransitionScope) {
           Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -335,13 +367,19 @@ fun PlannerScreen(
               modifier = Modifier.padding(12.dp),
               verticalAlignment = Alignment.CenterVertically,
             ) {
+              Box(
+                modifier =
+                  Modifier.size(width = 4.dp, height = 46.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(categoryColor),
+              )
               IconButton(onClick = { onToggleTask(task) }, modifier = Modifier.size(48.dp)) {
                 Icon(
                   imageVector =
                     if (task.completed) Icons.Rounded.CheckCircle
                     else Icons.Rounded.RadioButtonUnchecked,
                   contentDescription = "Complete ${task.title}",
-                  tint = Color(task.colorHex),
+                  tint = categoryColor,
                 )
               }
               Column(modifier = Modifier.weight(1f)) {
@@ -349,17 +387,8 @@ fun PlannerScreen(
                   verticalAlignment = Alignment.CenterVertically,
                   horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                  Surface(
-                    color = Color(task.colorHex).copy(alpha = 0.16f),
-                    shape = RoundedCornerShape(6.dp),
-                  ) {
-                    Text(
-                      text = if (task.type == "EXAM") "EXAM" else "ASSIGNMENT",
-                      style = MaterialTheme.typography.labelSmall,
-                      color = Color(task.colorHex),
-                      modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                  }
+                  TaskCategoryBadge(typeRaw = task.type)
+                  Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(task.colorHex)))
                   if (task.reminderLeadMinutes > 0L && !task.completed) {
                     Icon(
                       Icons.Rounded.NotificationsActive,

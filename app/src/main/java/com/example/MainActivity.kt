@@ -263,6 +263,7 @@ fun MainStudyWorkspace(
   val preferences by plannerViewModel.preferences.collectAsStateWithLifecycle()
   val selectedDay by plannerViewModel.selectedDayOfWeek.collectAsStateWithLifecycle()
   val selectedFilter by plannerViewModel.selectedTaskFilter.collectAsStateWithLifecycle()
+  val selectedDashboardCategory by plannerViewModel.selectedDashboardCategory.collectAsStateWithLifecycle()
   val actionMessage by plannerViewModel.actionMessage.collectAsStateWithLifecycle()
   val timerState by focusViewModel.uiState.collectAsStateWithLifecycle()
   val voiceState by voiceViewModel.uiState.collectAsStateWithLifecycle()
@@ -444,9 +445,11 @@ fun MainStudyWorkspace(
                   tasksState = tasksState,
                   sessionsState = sessionsState,
                   selectedDayOfWeek = selectedDay,
+                  selectedCategory = selectedDashboardCategory,
                   sharedTransitionScope = this@SharedTransitionLayout,
                   animatedVisibilityScope = this@composable,
                   onSelectDay = plannerViewModel::selectDay,
+                  onSelectCategory = plannerViewModel::setDashboardCategory,
                   onCycleTheme = plannerViewModel::cycleThemeMode,
                   onOpenSettings = { navController.navigate(SettingsRoute) },
                   onStartQuickFocus = { subjId, subjName, taskId, taskTitle ->

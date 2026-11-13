@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -452,18 +453,35 @@ fun AddTaskDialog(
 
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text("Add Assignment / Exam", style = MaterialTheme.typography.titleLarge) },
+    title = { Text("New Study Task", style = MaterialTheme.typography.titleLarge) },
     text = {
       Column(
         modifier = Modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
       ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Category", style = MaterialTheme.typography.labelLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           TaskType.entries.forEach { t ->
+            val categoryColor = t.adaptiveCategoryColor()
+            val isSelected = selectedType == t
             FilterChip(
-              selected = selectedType == t,
+              selected = isSelected,
               onClick = { selectedType = t },
+              leadingIcon = {
+                Icon(
+                  imageVector = t.categoryIcon(),
+                  contentDescription = null,
+                  modifier = Modifier.size(16.dp),
+                )
+              },
+              colors =
+                FilterChipDefaults.filterChipColors(
+                  selectedContainerColor = categoryColor.copy(alpha = 0.16f),
+                  selectedLabelColor = categoryColor,
+                  selectedLeadingIconColor = categoryColor,
+                ),
               label = { Text(t.label) },
+              modifier = Modifier.testTag("task_type_chip_${t.name.lowercase()}"),
             )
           }
         }

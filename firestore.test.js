@@ -109,6 +109,60 @@ test("Authenticated user can create and read their own subject, slot, task, and 
   );
 
   await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).collection("tasks").doc("task_reading").set({
+      userId: ALICE_UID,
+      subjectId: "subj_1",
+      subjectName: "Algorithms",
+      colorHex: 0xFF4338CA,
+      title: "Read Chapter 4 Red-Black Trees",
+      notes: "",
+      type: "READING",
+      priority: "MEDIUM",
+      dueAtMillis: 1794528000000,
+      reminderLeadMinutes: 60,
+      completed: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).collection("tasks").doc("task_project").set({
+      userId: ALICE_UID,
+      subjectId: "subj_1",
+      subjectName: "Algorithms",
+      colorHex: 0xFF4338CA,
+      title: "Capstone Milestone",
+      notes: "",
+      type: "PROJECT",
+      priority: "HIGH",
+      dueAtMillis: 1794528000000,
+      reminderLeadMinutes: 60,
+      completed: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).collection("tasks").doc("task_lab").set({
+      userId: ALICE_UID,
+      subjectId: "subj_1",
+      subjectName: "Algorithms",
+      colorHex: 0xFF4338CA,
+      title: "Benchmark Lab 2",
+      notes: "",
+      type: "LAB",
+      priority: "LOW",
+      dueAtMillis: 1794528000000,
+      reminderLeadMinutes: 60,
+      completed: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  await assertSucceeds(
     aliceDb.collection("users").doc(ALICE_UID).collection("sessions").doc("sess_1").set({
       userId: ALICE_UID,
       subjectId: "subj_1",

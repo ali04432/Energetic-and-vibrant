@@ -106,7 +106,7 @@
         "colorHex": { "type": "integer" },
         "title": { "type": "string" },
         "notes": { "type": "string" },
-        "type": { "type": "string", "enum": ["ASSIGNMENT", "EXAM"] },
+        "type": { "type": "string", "enum": ["EXAM", "ASSIGNMENT", "READING", "PROJECT", "LAB"] },
         "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
         "dueAtMillis": { "type": "integer" },
         "reminderLeadMinutes": { "type": "integer" },

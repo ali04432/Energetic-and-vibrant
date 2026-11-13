@@ -60,6 +60,7 @@ import com.example.data.model.StudyTask
 import com.example.data.model.Subject
 import com.example.data.model.TimetableSlot
 import com.example.data.preferences.UserPreferences
+import com.example.ui.components.TaskCategoryBadge
 import com.example.ui.components.dayLabelShort
 import com.example.ui.components.formatDueSummary
 import com.example.ui.components.formatMinutesOfDay
@@ -184,7 +185,7 @@ fun SubjectDetailScreen(
       }
 
       item {
-        Text("Assignments & Exams (${subjectTasks.size})", style = MaterialTheme.typography.titleLarge)
+        Text("Study Tasks (${subjectTasks.size})", style = MaterialTheme.typography.titleLarge)
       }
       items(subjectTasks, key = { it.id }) { task ->
         Card(
@@ -192,7 +193,8 @@ fun SubjectDetailScreen(
           shape = RoundedCornerShape(16.dp),
           modifier = Modifier.fillMaxWidth(),
         ) {
-          Column(modifier = Modifier.padding(14.dp)) {
+          Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            TaskCategoryBadge(typeRaw = task.type)
             Text(task.title, style = MaterialTheme.typography.titleSmall)
             Text(
               text = formatDueSummary(task.dueAtMillis),
@@ -264,18 +266,8 @@ fun TaskDetailScreen(
                 ),
           ) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Surface(
-                  color = Color(task.colorHex).copy(alpha = 0.16f),
-                  shape = RoundedCornerShape(8.dp),
-                ) {
-                  Text(
-                    text = task.type,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color(task.colorHex),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                  )
-                }
+              Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TaskCategoryBadge(typeRaw = task.type)
                 Surface(
                   color = MaterialTheme.colorScheme.surfaceVariant,
                   shape = RoundedCornerShape(8.dp),

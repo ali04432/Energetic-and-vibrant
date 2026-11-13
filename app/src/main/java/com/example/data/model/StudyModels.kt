@@ -5,9 +5,21 @@ import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.IgnoreExtraProperties
 import com.google.firebase.firestore.ServerTimestamp
 
-enum class TaskType(val label: String) {
-  ASSIGNMENT("Assignment"),
-  EXAM("Exam"),
+enum class TaskType(
+  val label: String,
+  val badge: String,
+  val accentColorHex: Long,
+) {
+  EXAM("Exam", "EXAM", 0xFFEF4444L),
+  ASSIGNMENT("Assignment", "ASSIGNMENT", 0xFF4338CAL),
+  READING("Reading", "READING", 0xFF10B981L),
+  PROJECT("Project", "PROJECT", 0xFF8B5CF6L),
+  LAB("Lab", "LAB", 0xFFF59E0BL);
+
+  companion object {
+    fun fromRaw(raw: String?): TaskType =
+      entries.firstOrNull { it.name.equals(raw?.trim(), ignoreCase = true) } ?: ASSIGNMENT
+  }
 }
 
 enum class TaskPriority(val label: String) {

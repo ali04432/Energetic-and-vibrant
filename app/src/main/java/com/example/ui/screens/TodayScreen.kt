@@ -42,6 +42,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -61,9 +63,13 @@ import androidx.compose.ui.unit.dp
 import com.example.data.model.FocusSession
 import com.example.data.model.StudyTask
 import com.example.data.model.Subject
+import com.example.data.model.TaskType
 import com.example.data.model.TimetableSlot
 import com.example.data.model.UiState
 import com.example.data.model.UserStats
+import com.example.ui.components.TaskCategoryBadge
+import com.example.ui.components.adaptiveCategoryColor
+import com.example.ui.components.categoryIcon
 import com.example.ui.components.dayLabelShort
 import com.example.ui.components.formatDueSummary
 import com.example.ui.components.formatMinutesOfDay
@@ -81,9 +87,11 @@ fun TodayScreen(
   tasksState: UiState<List<StudyTask>>,
   sessionsState: UiState<List<FocusSession>>,
   selectedDayOfWeek: Int,
+  selectedCategory: TaskType?,
   sharedTransitionScope: SharedTransitionScope,
   animatedVisibilityScope: AnimatedVisibilityScope,
   onSelectDay: (Int) -> Unit,
+  onSelectCategory: (TaskType?) -> Unit,
   onCycleTheme: () -> Unit,
   onOpenSettings: () -> Unit,
   onStartQuickFocus: (subjectId: String, subjectName: String, taskId: String, taskTitle: String) -> Unit,
@@ -107,7 +115,11 @@ fun TodayScreen(
   val goalProgress = (todayFocusMinutes.toFloat() / dailyGoal.toFloat()).coerceIn(0f, 1f)
 
   val daySlots = slots.filter { it.dayOfWeek.toInt() == selectedDayOfWeek }
-  val upcomingTasks = tasks.filter { !it.completed }.take(4)
+  val pendingTasks = tasks.filter { !it.completed }
+  val categoryCounts = pendingTasks.groupingBy { TaskType.fromRaw(it.type) }.eachCount()
+  val upcomingTasks =
+    if (selectedCategory == null) pendingTasks.take(6)
+    else pendingTasks.filter { TaskType.fromRaw(it.type) == selectedCategory }
 
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
@@ -435,26 +447,63 @@ fun TodayScreen(
       }
     }
 
-    // Upcoming Deadlines
+    // Upcoming Deadlines & Category Filter Strip
     item {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        Text("Upcoming Deadlines", style = MaterialTheme.typography.titleLarge)
-        FilledTonalButton(
-          onClick = onOpenAddTask,
-          modifier = Modifier.heightIn(min = 40.dp).testTag("today_add_task_button"),
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
         ) {
-          Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(modifier = Modifier.width(4.dp))
-          Text("New Deadline")
+          Text("Upcoming Deadlines", style = MaterialTheme.typography.titleLarge)
+          FilledTonalButton(
+            onClick = onOpenAddTask,
+            modifier = Modifier.heightIn(min = 40.dp).testTag("today_add_task_button"),
+          ) {
+            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("New Task")
+          }
+        }
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          item {
+            FilterChip(
+              selected = selectedCategory == null,
+              onClick = { onSelectCategory(null) },
+              label = { Text("All (${pendingTasks.size})") },
+              modifier = Modifier.testTag("dashboard_filter_all"),
+            )
+          }
+          items(TaskType.entries) { category ->
+            val count = categoryCounts[category] ?: 0
+            val tint = category.adaptiveCategoryColor()
+            val isSelected = selectedCategory == category
+            FilterChip(
+              selected = isSelected,
+              onClick = { onSelectCategory(if (isSelected) null else category) },
+              leadingIcon = {
+                Icon(
+                  imageVector = category.categoryIcon(),
+                  contentDescription = null,
+                  modifier = Modifier.size(16.dp),
+                )
+              },
+              colors =
+                FilterChipDefaults.filterChipColors(
+                  selectedContainerColor = tint.copy(alpha = 0.16f),
+                  selectedLabelColor = tint,
+                  selectedLeadingIconColor = tint,
+                ),
+              label = { Text("${category.label} ($count)") },
+              modifier = Modifier.testTag("dashboard_filter_${category.name.lowercase()}"),
+            )
+          }
         }
       }
     }
 
-    if (upcomingTasks.isEmpty()) {
+    if (pendingTasks.isEmpty()) {
       item {
         Card(
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -475,7 +524,7 @@ fun TodayScreen(
             Column {
               Text("You're all caught up!", style = MaterialTheme.typography.titleMedium)
               Text(
-                "Add assignments or exam dates to receive timely reminders.",
+                "Add exams, assignments, readings, projects, or labs to get timely reminders.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
               )
@@ -483,8 +532,52 @@ fun TodayScreen(
           }
         }
       }
+    } else if (upcomingTasks.isEmpty() && selectedCategory != null) {
+      item {
+        Card(
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          shape = RoundedCornerShape(18.dp),
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+          ) {
+            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+              Icon(
+                imageVector = selectedCategory.categoryIcon(),
+                contentDescription = null,
+                tint = selectedCategory.adaptiveCategoryColor(),
+                modifier = Modifier.size(26.dp),
+              )
+              Spacer(modifier = Modifier.width(12.dp))
+              Column {
+                Text(
+                  text = "No ${selectedCategory.label.lowercase()} tasks pending",
+                  style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                  text = "Switch back to All to view your other active deadlines.",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            FilledTonalButton(
+              onClick = { onSelectCategory(null) },
+              modifier = Modifier.testTag("reset_dashboard_category_filter"),
+            ) {
+              Text("Show All")
+            }
+          }
+        }
+      }
     } else {
       items(upcomingTasks, key = { it.id }) { task ->
+        val taskCategory = TaskType.fromRaw(task.type)
+        val categoryColor = taskCategory.adaptiveCategoryColor()
         with(sharedTransitionScope) {
           Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -503,6 +596,12 @@ fun TodayScreen(
               modifier = Modifier.padding(14.dp),
               verticalAlignment = Alignment.CenterVertically,
             ) {
+              Box(
+                modifier =
+                  Modifier.size(width = 4.dp, height = 46.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(categoryColor),
+              )
               IconButton(
                 onClick = { onToggleTask(task) },
                 modifier = Modifier.size(48.dp),
@@ -512,7 +611,7 @@ fun TodayScreen(
                     if (task.completed) Icons.Rounded.CheckCircle
                     else Icons.Rounded.RadioButtonUnchecked,
                   contentDescription = "Toggle ${task.title}",
-                  tint = Color(task.colorHex),
+                  tint = categoryColor,
                 )
               }
               Column(modifier = Modifier.weight(1f)) {
@@ -520,17 +619,8 @@ fun TodayScreen(
                   verticalAlignment = Alignment.CenterVertically,
                   horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                  Surface(
-                    color = Color(task.colorHex).copy(alpha = 0.16f),
-                    shape = RoundedCornerShape(6.dp),
-                  ) {
-                    Text(
-                      text = if (task.type == "EXAM") "EXAM" else "ASSIGNMENT",
-                      style = MaterialTheme.typography.labelSmall,
-                      color = Color(task.colorHex),
-                      modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                  }
+                  TaskCategoryBadge(typeRaw = task.type)
+                  Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color(task.colorHex)))
                   Text(
                     text = task.subjectName,
                     style = MaterialTheme.typography.labelMedium,

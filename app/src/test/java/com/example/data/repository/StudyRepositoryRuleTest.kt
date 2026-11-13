@@ -84,6 +84,85 @@ class StudyRepositoryRuleTest : FirestoreEmulatorTestBase() {
     val updatedTask = tracedStep("getTaskById_updated") { withTimeout(DEFAULT_TIMEOUT_MS) { repo.getTaskById(uid, taskId) } }
     assertEquals(true, updatedTask?.completed)
 
+    val readingId =
+      tracedStep("addReadingTask") {
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+          repo.addTask(
+            userId = uid,
+            subjectId = subjectId,
+            subjectName = "Algorithms",
+            colorHex = 0xFF4338CAL,
+            title = "Chapter 5 Reading",
+            notes = "",
+            type = TaskType.READING.name,
+            priority = TaskPriority.MEDIUM.name,
+            dueAtMillis = System.currentTimeMillis() + 86_400_000L,
+            reminderLeadMinutes = 60L,
+          )
+        }
+      }
+    assertEquals(TaskType.READING.name, tracedStep("getReadingTask") { withTimeout(DEFAULT_TIMEOUT_MS) { repo.getTaskById(uid, readingId) } }?.type)
+
+    val projectId =
+      tracedStep("addProjectTask") {
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+          repo.addTask(
+            userId = uid,
+            subjectId = subjectId,
+            subjectName = "Algorithms",
+            colorHex = 0xFF4338CAL,
+            title = "Team Graph Visualizer",
+            notes = "",
+            type = TaskType.PROJECT.name,
+            priority = TaskPriority.HIGH.name,
+            dueAtMillis = System.currentTimeMillis() + 172_800_000L,
+            reminderLeadMinutes = 60L,
+          )
+        }
+      }
+    assertTrue(projectId.isNotBlank())
+
+    val labId =
+      tracedStep("addLabTask") {
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+          repo.addTask(
+            userId = uid,
+            subjectId = subjectId,
+            subjectName = "Algorithms",
+            colorHex = 0xFF4338CAL,
+            title = "Sorting Benchmark Lab",
+            notes = "",
+            type = TaskType.LAB.name,
+            priority = TaskPriority.LOW.name,
+            dueAtMillis = System.currentTimeMillis() + 259_200_000L,
+            reminderLeadMinutes = 30L,
+          )
+        }
+      }
+    assertTrue(labId.isNotBlank())
+
+    try {
+      withTimeout(DEFAULT_TIMEOUT_MS) {
+        repo.addTask(
+          userId = uid,
+          subjectId = subjectId,
+          subjectName = "Algorithms",
+          colorHex = 0xFF4338CAL,
+          title = "Invalid Type Check",
+          notes = "",
+          type = "INVALID_CATEGORY",
+          priority = TaskPriority.MEDIUM.name,
+          dueAtMillis = System.currentTimeMillis() + 86_400_000L,
+          reminderLeadMinutes = 60L,
+        )
+      }
+      fail("Expected PERMISSION_DENIED for invalid task category")
+    } catch (e: Exception) {
+      val firestoreEx = e.unwrapFirestoreException()
+      assertNotNull("Expected FirebaseFirestoreException, got $e", firestoreEx)
+      assertEquals(FirebaseFirestoreException.Code.PERMISSION_DENIED, firestoreEx?.code)
+    }
+
     val sessionId =
       tracedStep("recordFocusSessionAndUpdateStreak") {
         withTimeout(DEFAULT_TIMEOUT_MS) {

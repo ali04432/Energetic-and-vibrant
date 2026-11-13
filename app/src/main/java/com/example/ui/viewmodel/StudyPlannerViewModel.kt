@@ -8,6 +8,7 @@ import com.example.data.model.FocusSession
 import com.example.data.model.StudySpot
 import com.example.data.model.StudyTask
 import com.example.data.model.Subject
+import com.example.data.model.TaskType
 import com.example.data.model.TimetableSlot
 import com.example.data.model.UiState
 import com.example.data.model.UserStats
@@ -29,10 +30,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class TaskFilter(val label: String) {
+enum class TaskFilter(val label: String, val taskType: TaskType? = null) {
   ALL("All"),
-  ASSIGNMENTS("Assignments"),
-  EXAMS("Exams"),
+  EXAMS("Exams", TaskType.EXAM),
+  ASSIGNMENTS("Assignments", TaskType.ASSIGNMENT),
+  READING("Reading", TaskType.READING),
+  PROJECTS("Projects", TaskType.PROJECT),
+  LABS("Labs", TaskType.LAB),
   COMPLETED("Done"),
 }
 
@@ -105,6 +109,9 @@ class StudyPlannerViewModel(
   private val _selectedTaskFilter = MutableStateFlow(TaskFilter.ALL)
   val selectedTaskFilter: StateFlow<TaskFilter> = _selectedTaskFilter.asStateFlow()
 
+  private val _selectedDashboardCategory = MutableStateFlow<TaskType?>(null)
+  val selectedDashboardCategory: StateFlow<TaskType?> = _selectedDashboardCategory.asStateFlow()
+
   private val _actionMessage = MutableStateFlow<String?>(null)
   val actionMessage: StateFlow<String?> = _actionMessage.asStateFlow()
 
@@ -114,6 +121,10 @@ class StudyPlannerViewModel(
 
   fun setTaskFilter(filter: TaskFilter) {
     _selectedTaskFilter.value = filter
+  }
+
+  fun setDashboardCategory(category: TaskType?) {
+    _selectedDashboardCategory.value = category
   }
 
   fun clearActionMessage() {
@@ -272,7 +283,7 @@ class StudyPlannerViewModel(
           taskId = taskId,
           title = title.trim(),
           subjectName = subjName,
-          typeLabel = if (type == "EXAM") "Exam" else "Assignment",
+          typeLabel = TaskType.fromRaw(type).label,
           dueAtMillis = dueAtMillis,
           leadMinutes = reminderLeadMinutes,
         )
@@ -299,7 +310,7 @@ class StudyPlannerViewModel(
             taskId = task.id,
             title = task.title,
             subjectName = task.subjectName,
-            typeLabel = if (task.type == "EXAM") "Exam" else "Assignment",
+            typeLabel = TaskType.fromRaw(task.type).label,
             dueAtMillis = task.dueAtMillis,
             leadMinutes = task.reminderLeadMinutes,
           )
@@ -324,7 +335,7 @@ class StudyPlannerViewModel(
             taskId = task.id,
             title = task.title,
             subjectName = task.subjectName,
-            typeLabel = if (task.type == "EXAM") "Exam" else "Assignment",
+            typeLabel = TaskType.fromRaw(task.type).label,
             dueAtMillis = task.dueAtMillis,
             leadMinutes = task.reminderLeadMinutes,
           )

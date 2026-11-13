@@ -117,11 +117,11 @@ class VoiceCoachViewModel(
           ),
           FunctionDeclaration(
             name = "create_study_task",
-            description = "Creates a new assignment or exam deadline in StudyPulse with a pre-deadline notification.",
+            description = "Creates a new categorized study task (Exam, Assignment, Reading, Project, or Lab) in StudyPulse with a pre-deadline notification.",
             parameters = mapOf(
-              "title" to Schema.string("Short title of the assignment or exam"),
+              "title" to Schema.string("Short title of the study task"),
               "subjectName" to Schema.string("Matching subject name or General Study"),
-              "type" to Schema.enumeration(listOf("ASSIGNMENT", "EXAM"), "Task type"),
+              "type" to Schema.enumeration(TaskType.entries.map { it.name }, "Task category"),
               "priority" to Schema.enumeration(listOf("LOW", "MEDIUM", "HIGH"), "Priority level"),
               "hoursFromNow" to Schema.integer("Hours until the deadline from now, e.g. 24 or 48"),
             ),
@@ -458,7 +458,8 @@ class VoiceCoachViewModel(
         val matchedSubj =
           latestSubjects.firstOrNull { it.name.equals(subjQuery, ignoreCase = true) }
             ?: latestSubjects.firstOrNull { it.name.contains(subjQuery, ignoreCase = true) }
-        val safeType = if (typeRaw == TaskType.EXAM.name) TaskType.EXAM.name else TaskType.ASSIGNMENT.name
+        val resolvedType = TaskType.fromRaw(typeRaw)
+        val safeType = resolvedType.name
         val safePriority =
           when (priorityRaw) {
             TaskPriority.HIGH.name -> TaskPriority.HIGH.name
@@ -487,7 +488,7 @@ class VoiceCoachViewModel(
               taskId = taskId,
               title = title,
               subjectName = matchedSubj?.name ?: "General Study",
-              typeLabel = if (safeType == TaskType.EXAM.name) "Exam" else "Assignment",
+              typeLabel = resolvedType.label,
               dueAtMillis = dueAtMillis,
               leadMinutes = 60L,
             )

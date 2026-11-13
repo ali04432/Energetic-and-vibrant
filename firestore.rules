@@ -68,7 +68,7 @@ service cloud.firestore {
              data.colorHex is int &&
              data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
              data.notes is string && data.notes.size() <= 500 &&
-             data.type is string && (data.type == 'ASSIGNMENT' || data.type == 'EXAM') &&
+             data.type is string && (data.type == 'EXAM' || data.type == 'ASSIGNMENT' || data.type == 'READING' || data.type == 'PROJECT' || data.type == 'LAB') &&
              data.priority is string && (data.priority == 'LOW' || data.priority == 'MEDIUM' || data.priority == 'HIGH') &&
              data.dueAtMillis is int && data.dueAtMillis > 0 &&
              data.reminderLeadMinutes is int && data.reminderLeadMinutes >= 0 && data.reminderLeadMinutes <= 10080 &&
