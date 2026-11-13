@@ -1,0 +1,179 @@
+{
+  "entities": {
+    "UserStats": {
+      "title": "UserStats",
+      "description": "Per-user study streak counters, daily focus goal, and profile summary.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID owning this record."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name shown on dashboard."
+        },
+        "currentStreak": {
+          "type": "integer",
+          "description": "Active consecutive study days."
+        },
+        "longestStreak": {
+          "type": "integer",
+          "description": "Highest consecutive study days achieved."
+        },
+        "lastFocusDate": {
+          "type": "string",
+          "description": "ISO local date (YYYY-MM-DD) of the most recent completed focus session, or empty string."
+        },
+        "dailyGoalMinutes": {
+          "type": "integer",
+          "description": "Target daily focus duration in minutes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "currentStreak",
+        "longestStreak",
+        "lastFocusDate",
+        "dailyGoalMinutes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Academic course or study subject with color badge and instructor metadata.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "instructor": { "type": "string" },
+        "colorHex": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "code", "instructor", "colorHex", "createdAt", "updatedAt"]
+    },
+    "TimetableSlot": {
+      "title": "TimetableSlot",
+      "description": "Weekly recurring class or study block assigned to a day of week.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "colorHex": { "type": "integer" },
+        "dayOfWeek": { "type": "integer" },
+        "startMinutes": { "type": "integer" },
+        "endMinutes": { "type": "integer" },
+        "room": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "subjectId",
+        "subjectName",
+        "colorHex",
+        "dayOfWeek",
+        "startMinutes",
+        "endMinutes",
+        "room",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "StudyTask": {
+      "title": "StudyTask",
+      "description": "Assignment or exam with due timestamp, priority, and notification lead time.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "colorHex": { "type": "integer" },
+        "title": { "type": "string" },
+        "notes": { "type": "string" },
+        "type": { "type": "string", "enum": ["ASSIGNMENT", "EXAM"] },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+        "dueAtMillis": { "type": "integer" },
+        "reminderLeadMinutes": { "type": "integer" },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "subjectId",
+        "subjectName",
+        "colorHex",
+        "title",
+        "notes",
+        "type",
+        "priority",
+        "dueAtMillis",
+        "reminderLeadMinutes",
+        "completed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "FocusSession": {
+      "title": "FocusSession",
+      "description": "Completed Pomodoro focus sprint logged for weekly analytics and streak calculation.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "taskId": { "type": "string" },
+        "durationMinutes": { "type": "integer" },
+        "dateKey": { "type": "string" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "subjectId",
+        "subjectName",
+        "taskId",
+        "durationMinutes",
+        "dateKey",
+        "completedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserStats" },
+      "description": "Authenticated user profile and streak metadata."
+    },
+    "/users/{userId}/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "User's academic subjects."
+    },
+    "/users/{userId}/slots/{slotId}": {
+      "schema": { "$ref": "#/entities/TimetableSlot" },
+      "description": "User's weekly class timetable slots."
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/StudyTask" },
+      "description": "User's assignments and exam deadlines."
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/FocusSession" },
+      "description": "User's completed Pomodoro focus sessions."
+    }
+  }
+}

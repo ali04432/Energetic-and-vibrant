@@ -1,0 +1,6 @@
+{
+  "name": "StudyPulse",
+  "description": "Smart Study Planner & Pomodoro Focus Timer with timetable, deadline alerts, weekly charts, and cloud sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

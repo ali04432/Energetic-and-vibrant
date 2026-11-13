@@ -1,0 +1,184 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny all reads and writes by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUserStats(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() <= 80 &&
+             data.currentStreak is int && data.currentStreak >= 0 && data.currentStreak <= 10000 &&
+             data.longestStreak is int && data.longestStreak >= 0 && data.longestStreak <= 10000 &&
+             data.lastFocusDate is string && (data.lastFocusDate == '' || data.lastFocusDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')) &&
+             data.dailyGoalMinutes is int && data.dailyGoalMinutes >= 10 && data.dailyGoalMinutes <= 720 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSubject(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+             data.code is string && data.code.size() <= 20 &&
+             data.instructor is string && data.instructor.size() <= 60 &&
+             data.colorHex is int &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidTimetableSlot(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.subjectId is string && data.subjectId.size() <= 128 &&
+             data.subjectName is string && data.subjectName.size() >= 1 && data.subjectName.size() <= 60 &&
+             data.colorHex is int &&
+             data.dayOfWeek is int && data.dayOfWeek >= 1 && data.dayOfWeek <= 7 &&
+             data.startMinutes is int && data.startMinutes >= 0 && data.startMinutes <= 1439 &&
+             data.endMinutes is int && data.endMinutes > data.startMinutes && data.endMinutes <= 1440 &&
+             data.room is string && data.room.size() <= 40 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidStudyTask(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.subjectId is string && data.subjectId.size() <= 128 &&
+             data.subjectName is string && data.subjectName.size() <= 60 &&
+             data.colorHex is int &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             data.notes is string && data.notes.size() <= 500 &&
+             data.type is string && (data.type == 'ASSIGNMENT' || data.type == 'EXAM') &&
+             data.priority is string && (data.priority == 'LOW' || data.priority == 'MEDIUM' || data.priority == 'HIGH') &&
+             data.dueAtMillis is int && data.dueAtMillis > 0 &&
+             data.reminderLeadMinutes is int && data.reminderLeadMinutes >= 0 && data.reminderLeadMinutes <= 10080 &&
+             data.completed is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidFocusSession(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.subjectId is string && data.subjectId.size() <= 128 &&
+             data.subjectName is string && data.subjectName.size() <= 60 &&
+             data.taskId is string && data.taskId.size() <= 128 &&
+             data.durationMinutes is int && data.durationMinutes >= 1 && data.durationMinutes <= 240 &&
+             data.dateKey is string && data.dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+             data.completedAt is timestamp && data.completedAt <= request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'currentStreak', 'longestStreak', 'lastFocusDate', 'dailyGoalMinutes', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'currentStreak', 'longestStreak', 'lastFocusDate', 'dailyGoalMinutes', 'createdAt', 'updatedAt']) &&
+                       isValidUserStats(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserStats(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'currentStreak', 'longestStreak', 'lastFocusDate', 'dailyGoalMinutes', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /subjects/{subjectId} {
+        allow get: if isOwner(userId) && isValidId(subjectId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(subjectId) &&
+                         incoming().keys().hasAll(['userId', 'name', 'code', 'instructor', 'colorHex', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'name', 'code', 'instructor', 'colorHex', 'createdAt', 'updatedAt']) &&
+                         isValidSubject(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(subjectId) &&
+                         isValidSubject(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'code', 'instructor', 'colorHex', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(subjectId);
+      }
+
+      match /slots/{slotId} {
+        allow get: if isOwner(userId) && isValidId(slotId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(slotId) &&
+                         incoming().keys().hasAll(['userId', 'subjectId', 'subjectName', 'colorHex', 'dayOfWeek', 'startMinutes', 'endMinutes', 'room', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'subjectId', 'subjectName', 'colorHex', 'dayOfWeek', 'startMinutes', 'endMinutes', 'room', 'createdAt', 'updatedAt']) &&
+                         isValidTimetableSlot(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(slotId) &&
+                         isValidTimetableSlot(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['subjectId', 'subjectName', 'colorHex', 'dayOfWeek', 'startMinutes', 'endMinutes', 'room', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(slotId);
+      }
+
+      match /tasks/{taskId} {
+        allow get: if isOwner(userId) && isValidId(taskId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(taskId) &&
+                         incoming().keys().hasAll(['userId', 'subjectId', 'subjectName', 'colorHex', 'title', 'notes', 'type', 'priority', 'dueAtMillis', 'reminderLeadMinutes', 'completed', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'subjectId', 'subjectName', 'colorHex', 'title', 'notes', 'type', 'priority', 'dueAtMillis', 'reminderLeadMinutes', 'completed', 'createdAt', 'updatedAt']) &&
+                         isValidStudyTask(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(taskId) &&
+                         isValidStudyTask(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['subjectId', 'subjectName', 'colorHex', 'title', 'notes', 'type', 'priority', 'dueAtMillis', 'reminderLeadMinutes', 'completed', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(taskId);
+      }
+
+      match /sessions/{sessionId} {
+        allow get: if isOwner(userId) && isValidId(sessionId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(sessionId) &&
+                         incoming().keys().hasAll(['userId', 'subjectId', 'subjectName', 'taskId', 'durationMinutes', 'dateKey', 'completedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'subjectId', 'subjectName', 'taskId', 'durationMinutes', 'dateKey', 'completedAt']) &&
+                         isValidFocusSession(incoming(), userId);
+
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(sessionId);
+      }
+    }
+  }
+}
