@@ -99,6 +99,7 @@ import com.example.ui.navigation.FocusRoute
 import com.example.ui.navigation.MapRoute
 import com.example.ui.navigation.PlannerRoute
 import com.example.ui.navigation.SettingsRoute
+import com.example.ui.navigation.StudyCoachRoute
 import com.example.ui.navigation.SubjectDetailRoute
 import com.example.ui.navigation.TaskDetailRoute
 import com.example.ui.navigation.TodayRoute
@@ -109,12 +110,14 @@ import com.example.ui.screens.CampusMapScreen
 import com.example.ui.screens.FocusScreen
 import com.example.ui.screens.PlannerScreen
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.StudyCoachChatScreen
 import com.example.ui.screens.SubjectDetailScreen
 import com.example.ui.screens.TaskDetailScreen
 import com.example.ui.screens.TodayScreen
 import com.example.ui.screens.WeeklySummaryScreen
 import com.example.ui.theme.StudyPulseTheme
 import com.example.ui.viewmodel.FocusTimerViewModel
+import com.example.ui.viewmodel.StudyCoachViewModel
 import com.example.ui.viewmodel.StudyGroundingViewModel
 import com.example.ui.viewmodel.StudyPlannerViewModel
 import com.example.ui.viewmodel.VoiceCoachViewModel
@@ -262,6 +265,24 @@ fun MainStudyWorkspace(
   val groundingViewModel: StudyGroundingViewModel =
     viewModel(key = "grounding_$currentUserId")
 
+  val coachViewModel: StudyCoachViewModel =
+    viewModel(
+      key = "coach_$currentUserId",
+      factory =
+        viewModelFactory {
+          initializer {
+            val app = checkNotNull(this[APPLICATION_KEY])
+            val databaseId = app.getString(R.string.firestore_database_id)
+            val db = FirebaseFirestore.getInstance(databaseId)
+            StudyCoachViewModel(
+              repository = StudyRepository(db),
+              currentUserId = currentUserId,
+              displayName = displayName,
+            )
+          }
+        },
+    )
+
   val userStatsState by plannerViewModel.userStatsState.collectAsStateWithLifecycle()
   val subjectsState by plannerViewModel.subjectsState.collectAsStateWithLifecycle()
   val slotsState by plannerViewModel.slotsState.collectAsStateWithLifecycle()
@@ -277,6 +298,9 @@ fun MainStudyWorkspace(
   val voiceState by voiceViewModel.uiState.collectAsStateWithLifecycle()
   val searchGroundingState by groundingViewModel.searchState.collectAsStateWithLifecycle()
   val mapsGroundingState by groundingViewModel.mapsState.collectAsStateWithLifecycle()
+  val coachUiState by coachViewModel.uiState.collectAsStateWithLifecycle()
+  val coachThreadsState by coachViewModel.threadsState.collectAsStateWithLifecycle()
+  val coachMessages by coachViewModel.messagesState.collectAsStateWithLifecycle()
 
   LaunchedEffect(preferences.focusMinutes, preferences.shortBreakMinutes, preferences.longBreakMinutes) {
     focusViewModel.syncDurations(
@@ -348,10 +372,13 @@ fun MainStudyWorkspace(
   }
 
   LaunchedEffect(subjectsState, slotsState, tasksState, spotsState) {
+    val curSubjects = (subjectsState as? UiState.Success)?.data.orEmpty()
+    val curTasks = (tasksState as? UiState.Success)?.data.orEmpty()
+    coachViewModel.updateAcademicContext(subjects = curSubjects, tasks = curTasks)
     voiceViewModel.updateLiveContext(
-      subjects = (subjectsState as? UiState.Success)?.data.orEmpty(),
+      subjects = curSubjects,
       slots = (slotsState as? UiState.Success)?.data.orEmpty(),
-      tasks = (tasksState as? UiState.Success)?.data.orEmpty(),
+      tasks = curTasks,
       spots = (spotsState as? UiState.Success)?.data.orEmpty(),
       onStartFocusTarget = { subjId, subjName, taskId, taskTitle, taskType ->
         focusViewModel.linkStudyTarget(subjId, subjName, taskId, taskTitle, taskType)
@@ -466,6 +493,7 @@ fun MainStudyWorkspace(
                   onCycleTheme = plannerViewModel::cycleThemeMode,
                   onOpenSettings = { navController.navigate(SettingsRoute) },
                   onOpenWeeklySummary = { navController.navigate(WeeklySummaryRoute) },
+                  onOpenStudyCoach = { navController.navigate(StudyCoachRoute) },
                   onOpenResearch = {
                     researchInitialQuery = ""
                     researchSubjectHint = ""
@@ -576,6 +604,7 @@ fun MainStudyWorkspace(
                   tasksState = tasksState,
                   subjectsState = subjectsState,
                   onOpenWeeklySummary = { navController.navigate(WeeklySummaryRoute) },
+                  onOpenStudyCoach = { navController.navigate(StudyCoachRoute) },
                 )
               }
 
@@ -585,6 +614,24 @@ fun MainStudyWorkspace(
                   tasksState = tasksState,
                   onBack = { navController.popBackStack() },
                   onStartFocus = { navigateTopLevel(FocusRoute) },
+                )
+              }
+
+              composable<StudyCoachRoute> {
+                StudyCoachChatScreen(
+                  uiState = coachUiState,
+                  threadsState = coachThreadsState,
+                  messages = coachMessages,
+                  subjects = (subjectsState as? UiState.Success)?.data.orEmpty(),
+                  onBack = { navController.popBackStack() },
+                  onSelectPersona = coachViewModel::selectPersona,
+                  onToggleWebSearch = coachViewModel::toggleWebSearch,
+                  onSelectSubjectContext = coachViewModel::setSubjectContext,
+                  onSelectThread = coachViewModel::selectThread,
+                  onStartNewThread = coachViewModel::startNewThread,
+                  onDeleteThread = coachViewModel::deleteThread,
+                  onSendMessage = coachViewModel::sendMessage,
+                  onClearError = coachViewModel::clearError,
                 )
               }
 

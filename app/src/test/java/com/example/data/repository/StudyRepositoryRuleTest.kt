@@ -1,6 +1,7 @@
 package com.example.data.repository
 
 import com.example.base.FirestoreEmulatorTestBase
+import com.example.data.model.CoachPersona
 import com.example.data.model.SpotCategory
 import com.example.data.model.TaskPriority
 import com.example.data.model.TaskType
@@ -267,6 +268,93 @@ class StudyRepositoryRuleTest : FirestoreEmulatorTestBase() {
       val firestoreEx = e.unwrapFirestoreException()
       assertNotNull("Expected FirebaseFirestoreException, got $e", firestoreEx)
       assertEquals(FirebaseFirestoreException.Code.PERMISSION_DENIED, firestoreEx?.code)
+    }
+  }
+
+  @Test
+  fun chatThreadsAndMessages_authenticatedOwnerSucceedsAndCrossUserDenied() = runBlocking {
+    val aliceUid = signInTestUser(ALICE_EMAIL)
+    val repo = StudyRepository(firestore)
+
+    val threadId =
+      tracedStep("createChatThread") {
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+          repo.createChatThread(
+            userId = aliceUid,
+            title = "Recursion & Memoization",
+            persona = CoachPersona.STUDY_TUTOR,
+            subjectId = "subj_cs",
+            subjectName = "Algorithms",
+            useSearchGrounding = true,
+          )
+        }
+      }
+    assertTrue(threadId.isNotBlank())
+
+    tracedStep("appendChatMessage_user") {
+      withTimeout(DEFAULT_TIMEOUT_MS) {
+        repo.appendChatMessage(
+          userId = aliceUid,
+          threadId = threadId,
+          senderRole = "user",
+          text = "What is the time complexity of Fibonacci with memoization?",
+          persona = CoachPersona.STUDY_TUTOR,
+          modelUsed = CoachPersona.STUDY_TUTOR.modelName,
+          webSearchUsed = true,
+          sourcesJson = "[]",
+          sequenceIndex = 0L,
+        )
+      }
+    }
+
+    tracedStep("appendChatMessage_model") {
+      withTimeout(DEFAULT_TIMEOUT_MS) {
+        repo.appendChatMessage(
+          userId = aliceUid,
+          threadId = threadId,
+          senderRole = "model",
+          text = "With memoization, each Fibonacci subproblem is computed once, giving O(n) time complexity.",
+          persona = CoachPersona.STUDY_TUTOR,
+          modelUsed = CoachPersona.STUDY_TUTOR.modelName,
+          webSearchUsed = true,
+          sourcesJson = "[{\"title\":\"Fibonacci Memoization\",\"domain\":\"en.wikipedia.org\",\"uri\":\"https://en.wikipedia.org/wiki/Memoization\"}]",
+          sequenceIndex = 1L,
+        )
+      }
+    }
+
+    val threads =
+      tracedStep("observeChatThreads") {
+        withTimeout(FLOW_TIMEOUT_MS) {
+          repo.observeChatThreads(aliceUid).first { list ->
+            list.any { it.id == threadId && it.messageCount == 2L }
+          }
+        }
+      }
+    assertEquals("Recursion & Memoization", threads.first { it.id == threadId }.title)
+
+    val messages =
+      tracedStep("observeChatMessages") {
+        withTimeout(FLOW_TIMEOUT_MS) {
+          repo.observeChatMessages(aliceUid, threadId).first { it.size >= 2 }
+        }
+      }
+    assertEquals("user", messages[0].senderRole)
+    assertEquals("model", messages[1].senderRole)
+
+    signInTestUser(BOB_EMAIL)
+    try {
+      withTimeout(FLOW_TIMEOUT_MS) { repo.observeChatMessages(aliceUid, threadId).first() }
+      fail("Expected PERMISSION_DENIED for cross-user chat read")
+    } catch (e: Exception) {
+      val firestoreEx = e.unwrapFirestoreException()
+      assertNotNull("Expected FirebaseFirestoreException, got $e", firestoreEx)
+      assertEquals(FirebaseFirestoreException.Code.PERMISSION_DENIED, firestoreEx?.code)
+    }
+
+    signInTestUser(ALICE_EMAIL)
+    tracedStep("deleteChatThread") {
+      withTimeout(DEFAULT_TIMEOUT_MS) { repo.deleteChatThread(aliceUid, threadId) }
     }
   }
 

@@ -183,6 +183,64 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "ChatThread": {
+      "title": "ChatThread",
+      "description": "Multi-turn Gemini Study Coach conversation thread with selected persona and grounding toggle.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "persona": { "type": "string", "enum": ["STUDY_TUTOR", "EXAM_COACH", "DEEP_SOLVER"] },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "useSearchGrounding": { "type": "boolean" },
+        "lastMessagePreview": { "type": "string" },
+        "messageCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "title",
+        "persona",
+        "subjectId",
+        "subjectName",
+        "useSearchGrounding",
+        "lastMessagePreview",
+        "messageCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ChatMessageRecord": {
+      "title": "ChatMessageRecord",
+      "description": "Single user or Gemini turn inside a Study Coach thread with optional Search Grounding citations.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "threadId": { "type": "string" },
+        "senderRole": { "type": "string", "enum": ["user", "model"] },
+        "text": { "type": "string" },
+        "persona": { "type": "string", "enum": ["STUDY_TUTOR", "EXAM_COACH", "DEEP_SOLVER"] },
+        "modelUsed": { "type": "string" },
+        "webSearchUsed": { "type": "boolean" },
+        "sourcesJson": { "type": "string" },
+        "sequenceIndex": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "threadId",
+        "senderRole",
+        "text",
+        "persona",
+        "modelUsed",
+        "webSearchUsed",
+        "sourcesJson",
+        "sequenceIndex",
+        "createdAt"
+      ]
     }
   },
   "firestore": {
@@ -209,6 +267,14 @@
     "/users/{userId}/spots/{spotId}": {
       "schema": { "$ref": "#/entities/StudySpot" },
       "description": "User's pinned campus classes and study spots."
+    },
+    "/users/{userId}/chatThreads/{threadId}": {
+      "schema": { "$ref": "#/entities/ChatThread" },
+      "description": "User's multi-turn Study Coach conversation threads."
+    },
+    "/users/{userId}/chatThreads/{threadId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessageRecord" },
+      "description": "Ordered user and model messages within a Study Coach thread."
     }
   }
 }

@@ -322,3 +322,86 @@ test("Authenticated user can create and delete study spots; invalid coords or cr
   await assertSucceeds(aliceDb.collection("users").doc(ALICE_UID).collection("spots").doc("spot_lib").delete());
 });
 
+test("Authenticated owner can manage chatThreads and immutable messages; cross-user and invalid schemas denied", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const unauthDb = testEnv.unauthenticatedContext().firestore();
+  const now = pastDate();
+
+  const threadRef = aliceDb.collection("users").doc(ALICE_UID).collection("chatThreads").doc("thread_1");
+  await assertSucceeds(
+    threadRef.set({
+      userId: ALICE_UID,
+      title: "Dynamic Programming Help",
+      persona: "STUDY_TUTOR",
+      subjectId: "subj_1",
+      subjectName: "Algorithms",
+      useSearchGrounding: true,
+      lastMessagePreview: "Explain memoization",
+      messageCount: 1,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  const msgRef = threadRef.collection("messages").doc("msg_1");
+  await assertSucceeds(
+    msgRef.set({
+      userId: ALICE_UID,
+      threadId: "thread_1",
+      senderRole: "user",
+      text: "Explain memoization vs tabulation.",
+      persona: "STUDY_TUTOR",
+      modelUsed: "gemini-4-hydrogen",
+      webSearchUsed: true,
+      sourcesJson: "[]",
+      sequenceIndex: 0,
+      createdAt: now,
+    })
+  );
+
+  // Invalid persona or mismatched threadId fails
+  await assertFails(
+    threadRef.collection("messages").doc("msg_bad_persona").set({
+      userId: ALICE_UID,
+      threadId: "thread_1",
+      senderRole: "user",
+      text: "Test",
+      persona: "UNKNOWN_ROLE",
+      modelUsed: "gemini-4-hydrogen",
+      webSearchUsed: false,
+      sourcesJson: "[]",
+      sequenceIndex: 1,
+      createdAt: now,
+    })
+  );
+
+  await assertFails(
+    threadRef.collection("messages").doc("msg_bad_thread").set({
+      userId: ALICE_UID,
+      threadId: "other_thread",
+      senderRole: "user",
+      text: "Test",
+      persona: "DEEP_SOLVER",
+      modelUsed: "gemini-4-carbon",
+      webSearchUsed: false,
+      sourcesJson: "[]",
+      sequenceIndex: 1,
+      createdAt: now,
+    })
+  );
+
+  // Messages are immutable on update
+  await assertFails(msgRef.update({ text: "Tampered" }));
+
+  // Cross-user and unauthenticated reads/writes fail
+  await assertFails(unauthDb.collection("users").doc(ALICE_UID).collection("chatThreads").get());
+  await assertFails(bobDb.collection("users").doc(ALICE_UID).collection("chatThreads").get());
+  await assertFails(bobDb.collection("users").doc(ALICE_UID).collection("chatThreads").doc("thread_1").collection("messages").get());
+
+  // Owner can update thread title and delete message + thread
+  await assertSucceeds(threadRef.update({ title: "DP vs Tabulation", updatedAt: pastDate() }));
+  await assertSucceeds(msgRef.delete());
+  await assertSucceeds(threadRef.delete());
+});
+

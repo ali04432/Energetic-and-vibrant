@@ -2,6 +2,9 @@ package com.example.data.repository
 
 import android.content.Context
 import com.example.R
+import com.example.data.model.ChatMessageRecord
+import com.example.data.model.ChatThread
+import com.example.data.model.CoachPersona
 import com.example.data.model.FocusSession
 import com.example.data.model.StudySpot
 import com.example.data.model.StudyTask
@@ -15,6 +18,7 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -45,6 +49,11 @@ class StudyRepository(private val db: FirebaseFirestore) {
   private fun sessionsCol(userId: String) = userDoc(userId).collection("sessions")
 
   private fun spotsCol(userId: String) = userDoc(userId).collection("spots")
+
+  private fun chatThreadsCol(userId: String) = userDoc(userId).collection("chatThreads")
+
+  private fun chatMessagesCol(userId: String, threadId: String) =
+    chatThreadsCol(userId).document(threadId).collection("messages")
 
   private fun logIfActiveUser(error: Throwable, op: OperationType, path: String, userId: String) {
     val firestoreError =
@@ -518,6 +527,169 @@ class StudyRepository(private val db: FirebaseFirestore) {
       throw e
     } catch (e: Exception) {
       handleFirestoreError(e, OperationType.DELETE, docRef.path, auth)
+      throw e
+    }
+  }
+
+  fun observeChatThreads(userId: String): Flow<List<ChatThread>> {
+    val col = chatThreadsCol(userId)
+    return col
+      .orderBy("updatedAt", Query.Direction.DESCENDING)
+      .snapshots()
+      .map { snapshot ->
+        snapshot.toObjects(ChatThread::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+      }
+      .catch { error ->
+        logIfActiveUser(error, OperationType.LIST, col.path, userId)
+        throw error
+      }
+  }
+
+  fun observeChatMessages(userId: String, threadId: String): Flow<List<ChatMessageRecord>> {
+    val col = chatMessagesCol(userId, threadId)
+    return col
+      .orderBy("sequenceIndex", Query.Direction.ASCENDING)
+      .snapshots()
+      .map { snapshot ->
+        snapshot.toObjects(
+          ChatMessageRecord::class.java,
+          DocumentSnapshot.ServerTimestampBehavior.ESTIMATE,
+        )
+      }
+      .catch { error ->
+        logIfActiveUser(error, OperationType.LIST, col.path, userId)
+        throw error
+      }
+  }
+
+  suspend fun createChatThread(
+    userId: String,
+    title: String,
+    persona: CoachPersona,
+    subjectId: String = "",
+    subjectName: String = "",
+    useSearchGrounding: Boolean = false,
+  ): String {
+    val docRef = chatThreadsCol(userId).document()
+    val safeTitle = title.trim().take(100).ifEmpty { "New Study Chat" }
+    val payload =
+      mapOf(
+        "userId" to userId,
+        "title" to safeTitle,
+        "persona" to persona.name,
+        "subjectId" to subjectId.take(128),
+        "subjectName" to subjectName.trim().take(60),
+        "useSearchGrounding" to useSearchGrounding,
+        "lastMessagePreview" to "",
+        "messageCount" to 0L,
+        "createdAt" to FieldValue.serverTimestamp(),
+        "updatedAt" to FieldValue.serverTimestamp(),
+      )
+    try {
+      docRef.set(payload).await()
+      return docRef.id
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      handleFirestoreError(e, OperationType.CREATE, docRef.path, auth)
+      throw e
+    }
+  }
+
+  suspend fun updateChatThreadMeta(
+    userId: String,
+    threadId: String,
+    title: String? = null,
+    persona: CoachPersona? = null,
+    subjectId: String? = null,
+    subjectName: String? = null,
+    useSearchGrounding: Boolean? = null,
+  ) {
+    require(threadId.isNotBlank()) { "Thread ID must not be blank" }
+    val docRef = chatThreadsCol(userId).document(threadId)
+    val updates = mutableMapOf<String, Any>("updatedAt" to FieldValue.serverTimestamp())
+    if (title != null) updates["title"] = title.trim().take(100).ifEmpty { "Study Chat" }
+    if (persona != null) updates["persona"] = persona.name
+    if (subjectId != null) updates["subjectId"] = subjectId.take(128)
+    if (subjectName != null) updates["subjectName"] = subjectName.trim().take(60)
+    if (useSearchGrounding != null) updates["useSearchGrounding"] = useSearchGrounding
+
+    try {
+      docRef.update(updates).await()
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      handleFirestoreError(e, OperationType.UPDATE, docRef.path, auth)
+      throw e
+    }
+  }
+
+  suspend fun appendChatMessage(
+    userId: String,
+    threadId: String,
+    senderRole: String,
+    text: String,
+    persona: CoachPersona,
+    modelUsed: String,
+    webSearchUsed: Boolean,
+    sourcesJson: String,
+    sequenceIndex: Long,
+  ): String {
+    require(threadId.isNotBlank()) { "Thread ID must not be blank" }
+    val trimmedText = text.trim().take(12000)
+    require(trimmedText.isNotEmpty()) { "Message text cannot be empty" }
+    val msgRef = chatMessagesCol(userId, threadId).document()
+    val threadRef = chatThreadsCol(userId).document(threadId)
+    val msgPayload =
+      mapOf(
+        "userId" to userId,
+        "threadId" to threadId,
+        "senderRole" to senderRole,
+        "text" to trimmedText,
+        "persona" to persona.name,
+        "modelUsed" to modelUsed.trim().take(60),
+        "webSearchUsed" to webSearchUsed,
+        "sourcesJson" to sourcesJson.take(8000),
+        "sequenceIndex" to sequenceIndex.coerceIn(0L, 10000L),
+        "createdAt" to FieldValue.serverTimestamp(),
+      )
+    val threadUpdates =
+      mapOf(
+        "persona" to persona.name,
+        "useSearchGrounding" to webSearchUsed,
+        "lastMessagePreview" to trimmedText.replace('\n', ' ').take(300),
+        "messageCount" to (sequenceIndex + 1L).coerceIn(1L, 10000L),
+        "updatedAt" to FieldValue.serverTimestamp(),
+      )
+    try {
+      val batch = db.batch()
+      batch.set(msgRef, msgPayload)
+      batch.update(threadRef, threadUpdates)
+      batch.commit().await()
+      return msgRef.id
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      handleFirestoreError(e, OperationType.WRITE, msgRef.path, auth)
+      throw e
+    }
+  }
+
+  suspend fun deleteChatThread(userId: String, threadId: String) {
+    val threadRef = chatThreadsCol(userId).document(threadId)
+    val messagesCol = chatMessagesCol(userId, threadId)
+    try {
+      val msgs = messagesCol.get().await()
+      for (chunk in msgs.documents.chunked(400)) {
+        val batch = db.batch()
+        chunk.forEach { batch.delete(it.reference) }
+        batch.commit().await()
+      }
+      threadRef.delete().await()
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      handleFirestoreError(e, OperationType.DELETE, threadRef.path, auth)
       throw e
     }
   }

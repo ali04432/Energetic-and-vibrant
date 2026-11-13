@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DarkMode
@@ -108,6 +109,7 @@ fun TodayScreen(
   onCycleTheme: () -> Unit,
   onOpenSettings: () -> Unit,
   onOpenWeeklySummary: () -> Unit,
+  onOpenStudyCoach: () -> Unit,
   onOpenResearch: () -> Unit,
   onUpdateDailyGoalHours: (Double) -> Unit,
   onStartQuickFocus: (subjectId: String, subjectName: String, taskId: String, taskTitle: String) -> Unit,
@@ -445,9 +447,73 @@ fun TodayScreen(
           }
           FilledTonalButton(
             onClick = onOpenWeeklySummary,
-            modifier = Modifier.heightIn(min = 40.dp).testTag("today_weekly_summary_button"),
+            modifier = Modifier.heightIn(min = 48.dp).testTag("today_weekly_summary_button"),
           ) {
             Text("Summary")
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+              Icons.AutoMirrored.Rounded.ArrowForward,
+              contentDescription = null,
+              modifier = Modifier.size(16.dp),
+            )
+          }
+        }
+      }
+    }
+
+    // Quick Entry to Gemini Study Coach Multi-Turn Chat
+    item {
+      Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(18.dp),
+        modifier =
+          Modifier.fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onOpenStudyCoach)
+            .testTag("today_open_study_coach_card"),
+      ) {
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f),
+          ) {
+            Box(
+              modifier =
+                Modifier.size(38.dp)
+                  .clip(CircleShape)
+                  .background(MaterialTheme.colorScheme.primary),
+              contentAlignment = Alignment.Center,
+            ) {
+              Icon(
+                Icons.Rounded.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(20.dp),
+              )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+              Text("Study Coach", style = MaterialTheme.typography.titleSmall)
+              Text(
+                text = "Tutor, Exam Coach, Deep Solver & Web Search",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+              )
+            }
+          }
+          Spacer(modifier = Modifier.width(8.dp))
+          FilledTonalButton(
+            onClick = onOpenStudyCoach,
+            modifier = Modifier.heightIn(min = 48.dp).testTag("today_open_study_coach_button"),
+          ) {
+            Text("Chat")
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
               Icons.AutoMirrored.Rounded.ArrowForward,

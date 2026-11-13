@@ -101,6 +101,36 @@ service cloud.firestore {
              data.updatedAt is timestamp && data.updatedAt <= request.time;
     }
 
+    function isValidChatPersona(persona) {
+      return persona is string && (persona == 'STUDY_TUTOR' || persona == 'EXAM_COACH' || persona == 'DEEP_SOLVER');
+    }
+
+    function isValidChatThread(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             isValidChatPersona(data.persona) &&
+             data.subjectId is string && data.subjectId.size() <= 128 &&
+             data.subjectName is string && data.subjectName.size() <= 60 &&
+             data.useSearchGrounding is bool &&
+             data.lastMessagePreview is string && data.lastMessagePreview.size() <= 300 &&
+             data.messageCount is int && data.messageCount >= 0 && data.messageCount <= 10000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidChatMessage(data, userId, threadId) {
+      return data.userId is string && data.userId == userId &&
+             data.threadId is string && data.threadId == threadId &&
+             data.senderRole is string && (data.senderRole == 'user' || data.senderRole == 'model') &&
+             data.text is string && data.text.size() >= 1 && data.text.size() <= 12000 &&
+             isValidChatPersona(data.persona) &&
+             data.modelUsed is string && data.modelUsed.size() >= 1 && data.modelUsed.size() <= 60 &&
+             data.webSearchUsed is bool &&
+             data.sourcesJson is string && data.sourcesJson.size() <= 8000 &&
+             data.sequenceIndex is int && data.sequenceIndex >= 0 && data.sequenceIndex <= 10000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
       allow list: if false;
@@ -212,6 +242,41 @@ service cloud.firestore {
                          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'address', 'notes', 'subjectId', 'latitude', 'longitude', 'updatedAt']);
 
         allow delete: if isOwner(userId) && isValidId(spotId);
+      }
+
+      match /chatThreads/{threadId} {
+        allow get: if isOwner(userId) && isValidId(threadId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(threadId) &&
+                         incoming().keys().hasAll(['userId', 'title', 'persona', 'subjectId', 'subjectName', 'useSearchGrounding', 'lastMessagePreview', 'messageCount', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'persona', 'subjectId', 'subjectName', 'useSearchGrounding', 'lastMessagePreview', 'messageCount', 'createdAt', 'updatedAt']) &&
+                         isValidChatThread(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(threadId) &&
+                         isValidChatThread(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'persona', 'subjectId', 'subjectName', 'useSearchGrounding', 'lastMessagePreview', 'messageCount', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(threadId);
+
+        match /messages/{messageId} {
+          allow get: if isOwner(userId) && isValidId(threadId) && isValidId(messageId);
+          allow list: if isOwner(userId) && isValidId(threadId);
+
+          allow create: if isOwner(userId) &&
+                           isValidId(threadId) &&
+                           isValidId(messageId) &&
+                           incoming().keys().hasAll(['userId', 'threadId', 'senderRole', 'text', 'persona', 'modelUsed', 'webSearchUsed', 'sourcesJson', 'sequenceIndex', 'createdAt']) &&
+                           incoming().keys().hasOnly(['userId', 'threadId', 'senderRole', 'text', 'persona', 'modelUsed', 'webSearchUsed', 'sourcesJson', 'sequenceIndex', 'createdAt']) &&
+                           isValidChatMessage(incoming(), userId, threadId);
+
+          allow update: if false;
+          allow delete: if isOwner(userId) && isValidId(threadId) && isValidId(messageId);
+        }
       }
     }
   }

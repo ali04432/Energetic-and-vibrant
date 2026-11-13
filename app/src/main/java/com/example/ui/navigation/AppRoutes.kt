@@ -28,3 +28,7 @@ data class SubjectDetailRoute(val subjectId: String)
 
 @Serializable
 data class TaskDetailRoute(val taskId: String)
+
+@Serializable
+data object StudyCoachRoute
+

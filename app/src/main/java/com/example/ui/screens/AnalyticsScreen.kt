@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.AutoGraph
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -62,6 +63,7 @@ fun AnalyticsScreen(
   tasksState: UiState<List<StudyTask>>,
   subjectsState: UiState<List<Subject>>,
   onOpenWeeklySummary: () -> Unit,
+  onOpenStudyCoach: () -> Unit,
 ) {
   val stats = (userStatsState as? UiState.Success)?.data
   val sessions = (sessionsState as? UiState.Success)?.data.orEmpty()
@@ -296,6 +298,60 @@ fun AnalyticsScreen(
                 .testTag("insights_open_weekly_summary_button"),
           ) {
             Text("View Category Hours & Trends")
+            Spacer(modifier = Modifier.width(6.dp))
+            Icon(
+              Icons.AutoMirrored.Rounded.ArrowForward,
+              contentDescription = null,
+              modifier = Modifier.size(18.dp),
+            )
+          }
+        }
+      }
+    }
+
+    // Study Coach AI Chatbot CTA Card
+    item {
+      Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.fillMaxWidth(),
+      ) {
+        Column(
+          modifier = Modifier.padding(18.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+          ) {
+            Icon(
+              Icons.Rounded.AutoAwesome,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.onPrimaryContainer,
+              modifier = Modifier.size(28.dp),
+            )
+            Column {
+              Text(
+                text = "Study Coach",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+              )
+              Text(
+                text = "Multi-turn Tutor, Exam Coach, Deep Solver & live Web Search",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+              )
+            }
+          }
+          Button(
+            onClick = onOpenStudyCoach,
+            shape = RoundedCornerShape(14.dp),
+            modifier =
+              Modifier.fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .testTag("insights_open_study_coach_button"),
+          ) {
+            Text("Open Study Coach Chat")
             Spacer(modifier = Modifier.width(6.dp))
             Icon(
               Icons.AutoMirrored.Rounded.ArrowForward,
