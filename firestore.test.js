@@ -168,6 +168,7 @@ test("Authenticated user can create and read their own subject, slot, task, and 
       subjectId: "subj_1",
       subjectName: "Algorithms",
       taskId: "task_1",
+      taskType: "EXAM",
       durationMinutes: 25,
       dateKey: "2026-11-12",
       completedAt: now,
@@ -255,6 +256,20 @@ test("Focus sessions are immutable once created", async () => {
       subjectId: "subj_1",
       subjectName: "Algorithms",
       taskId: "",
+      taskType: "READING",
+      durationMinutes: 25,
+      dateKey: "2026-11-12",
+      completedAt: now,
+    })
+  );
+
+  await assertFails(
+    aliceDb.collection("users").doc(ALICE_UID).collection("sessions").doc("sess_bad_type").set({
+      userId: ALICE_UID,
+      subjectId: "subj_1",
+      subjectName: "Algorithms",
+      taskId: "",
+      taskType: "GAMING",
       durationMinutes: 25,
       dateKey: "2026-11-12",
       completedAt: now,

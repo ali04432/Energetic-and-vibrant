@@ -139,6 +139,7 @@
         "subjectId": { "type": "string" },
         "subjectName": { "type": "string" },
         "taskId": { "type": "string" },
+        "taskType": { "type": "string", "enum": ["EXAM", "ASSIGNMENT", "READING", "PROJECT", "LAB"] },
         "durationMinutes": { "type": "integer" },
         "dateKey": { "type": "string" },
         "completedAt": { "type": "string", "format": "date-time" }
@@ -148,6 +149,7 @@
         "subjectId",
         "subjectName",
         "taskId",
+        "taskType",
         "durationMinutes",
         "dateKey",
         "completedAt"

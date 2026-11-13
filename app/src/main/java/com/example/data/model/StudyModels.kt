@@ -99,6 +99,7 @@ data class FocusSession(
   val subjectId: String = "",
   val subjectName: String = "",
   val taskId: String = "",
+  val taskType: String = "",
   val durationMinutes: Long = 25L,
   val dateKey: String = "",
   @ServerTimestamp val completedAt: Timestamp? = null,

@@ -6,6 +6,7 @@ import com.example.data.model.FocusSession
 import com.example.data.model.StudySpot
 import com.example.data.model.StudyTask
 import com.example.data.model.Subject
+import com.example.data.model.TaskType
 import com.example.data.model.TimetableSlot
 import com.example.data.model.UserStats
 import com.google.firebase.Firebase
@@ -402,6 +403,7 @@ class StudyRepository(private val db: FirebaseFirestore) {
     subjectId: String,
     subjectName: String,
     taskId: String,
+    taskType: String = TaskType.ASSIGNMENT.name,
     durationMinutes: Int,
     todayDateKey: String,
     yesterdayDateKey: String,
@@ -409,6 +411,7 @@ class StudyRepository(private val db: FirebaseFirestore) {
     val statsRef = userDoc(userId)
     val sessionRef = sessionsCol(userId).document()
     val safeDuration = durationMinutes.coerceIn(1, 240).toLong()
+    val safeTaskType = TaskType.fromRaw(taskType).name
 
     try {
       db.runTransaction { transaction ->
@@ -419,6 +422,7 @@ class StudyRepository(private val db: FirebaseFirestore) {
               "subjectId" to subjectId,
               "subjectName" to subjectName.trim().take(60),
               "taskId" to taskId,
+              "taskType" to safeTaskType,
               "durationMinutes" to safeDuration,
               "dateKey" to todayDateKey,
               "completedAt" to FieldValue.serverTimestamp(),

@@ -18,6 +18,9 @@ data object FocusRoute
 data object AnalyticsRoute
 
 @Serializable
+data object WeeklySummaryRoute
+
+@Serializable
 data object SettingsRoute
 
 @Serializable

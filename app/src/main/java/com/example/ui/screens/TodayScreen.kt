@@ -26,7 +26,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.LocalFireDepartment
@@ -94,6 +96,7 @@ fun TodayScreen(
   onSelectCategory: (TaskType?) -> Unit,
   onCycleTheme: () -> Unit,
   onOpenSettings: () -> Unit,
+  onOpenWeeklySummary: () -> Unit,
   onStartQuickFocus: (subjectId: String, subjectName: String, taskId: String, taskTitle: String) -> Unit,
   onOpenTaskDetail: (String) -> Unit,
   onOpenSubjectDetail: (String) -> Unit,
@@ -291,6 +294,84 @@ fun TodayScreen(
             style = MaterialTheme.typography.bodySmall,
             color = Color.White.copy(alpha = 0.9f),
           )
+        }
+      }
+    }
+
+    // Quick Entry to Weekly Category Summary
+    item {
+      val weeklyCategorySummary =
+        androidx.compose.runtime.remember(sessions, tasks) {
+          computeWeeklyCategorySummary(sessions, tasks)
+        }
+      Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(18.dp),
+        modifier =
+          Modifier.fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onOpenWeeklySummary)
+            .testTag("today_open_weekly_summary_card"),
+      ) {
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f),
+          ) {
+            Box(
+              modifier =
+                Modifier.size(38.dp)
+                  .clip(CircleShape)
+                  .background(MaterialTheme.colorScheme.primaryContainer),
+              contentAlignment = Alignment.Center,
+            ) {
+              Icon(
+                Icons.Rounded.BarChart,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+              )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+              Text("Weekly Category Summary", style = MaterialTheme.typography.titleSmall)
+              val summarySub =
+                weeklyCategorySummary.topCategory?.let {
+                  String.format(
+                    Locale.US,
+                    "%.1fh total (7d) • Top: %s",
+                    weeklyCategorySummary.currentTotalHours,
+                    it.taskType.label,
+                  )
+                } ?: String.format(
+                  Locale.US,
+                  "%.1fh total (7d) • Tap to view category trends",
+                  weeklyCategorySummary.currentTotalHours,
+                )
+              Text(
+                text = summarySub,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
+            }
+          }
+          FilledTonalButton(
+            onClick = onOpenWeeklySummary,
+            modifier = Modifier.heightIn(min = 40.dp).testTag("today_weekly_summary_button"),
+          ) {
+            Text("Summary")
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+              Icons.AutoMirrored.Rounded.ArrowForward,
+              contentDescription = null,
+              modifier = Modifier.size(16.dp),
+            )
+          }
         }
       }
     }

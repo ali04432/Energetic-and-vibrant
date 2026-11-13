@@ -17,10 +17,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AutoGraph
+import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -35,8 +38,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.heightIn
 import com.example.data.model.FocusSession
 import com.example.data.model.StudyTask
 import com.example.data.model.Subject
@@ -56,6 +61,7 @@ fun AnalyticsScreen(
   sessionsState: UiState<List<FocusSession>>,
   tasksState: UiState<List<StudyTask>>,
   subjectsState: UiState<List<Subject>>,
+  onOpenWeeklySummary: () -> Unit,
 ) {
   val stats = (userStatsState as? UiState.Success)?.data
   val sessions = (sessionsState as? UiState.Success)?.data.orEmpty()
@@ -225,6 +231,79 @@ fun AnalyticsScreen(
           value = "$completedTasksCount / ${tasks.size}",
           modifier = Modifier.weight(1f),
         )
+      }
+    }
+
+    // Weekly Category Summary CTA Card
+    item {
+      val weeklyCategorySummary =
+        remember(sessions, tasks) { computeWeeklyCategorySummary(sessions, tasks) }
+      Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.fillMaxWidth(),
+      ) {
+        Column(
+          modifier = Modifier.padding(18.dp),
+          verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(10.dp),
+              modifier = Modifier.weight(1f),
+            ) {
+              Icon(
+                Icons.Rounded.BarChart,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(28.dp),
+              )
+              Column {
+                Text(
+                  text = "Weekly Category Summary",
+                  style = MaterialTheme.typography.titleMedium,
+                  color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                val topLabel =
+                  weeklyCategorySummary.topCategory?.let {
+                    String.format(Locale.US, " • Top: %s (%.1fh)", it.taskType.label, it.currentHours)
+                  } ?: ""
+                Text(
+                  text =
+                    String.format(
+                      Locale.US,
+                      "%.1fh across Exam, Assignment, Reading, Project & Lab%s",
+                      weeklyCategorySummary.currentTotalHours,
+                      topLabel,
+                    ),
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f),
+                )
+              }
+            }
+          }
+          Button(
+            onClick = onOpenWeeklySummary,
+            shape = RoundedCornerShape(14.dp),
+            modifier =
+              Modifier.fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .testTag("insights_open_weekly_summary_button"),
+          ) {
+            Text("View Category Hours & Trends")
+            Spacer(modifier = Modifier.width(6.dp))
+            Icon(
+              Icons.AutoMirrored.Rounded.ArrowForward,
+              contentDescription = null,
+              modifier = Modifier.size(18.dp),
+            )
+          }
+        }
       }
     }
 

@@ -101,7 +101,7 @@ class VoiceCoachViewModel(
   private var latestSlots: List<TimetableSlot> = emptyList()
   private var latestTasks: List<StudyTask> = emptyList()
   private var latestSpots: List<StudySpot> = emptyList()
-  private var onNavigateFocusCallback: ((subjectId: String, subjectName: String, taskId: String, taskTitle: String) -> Unit)? = null
+  private var onNavigateFocusCallback: ((subjectId: String, subjectName: String, taskId: String, taskTitle: String, taskType: TaskType?) -> Unit)? = null
 
   private var liveSession: LiveSession? = null
   private var connectJob: Job? = null
@@ -145,7 +145,7 @@ class VoiceCoachViewModel(
     slots: List<TimetableSlot>,
     tasks: List<StudyTask>,
     spots: List<StudySpot>,
-    onStartFocusTarget: (subjectId: String, subjectName: String, taskId: String, taskTitle: String) -> Unit,
+    onStartFocusTarget: (subjectId: String, subjectName: String, taskId: String, taskTitle: String, taskType: TaskType?) -> Unit,
   ) {
     latestSubjects = subjects
     latestSlots = slots
@@ -522,9 +522,10 @@ class VoiceCoachViewModel(
         val subjName = matchedSubj?.name ?: subjQuery.ifBlank { "General Study" }
         val taskId = matchedTask?.id ?: ""
         val taskTitle = matchedTask?.title ?: taskQuery
+        val taskType = matchedTask?.type?.let { TaskType.fromRaw(it) }
 
         viewModelScope.launch(Dispatchers.Main) {
-          onNavigateFocusCallback?.invoke(subjId, subjName, taskId, taskTitle)
+          onNavigateFocusCallback?.invoke(subjId, subjName, taskId, taskTitle, taskType)
         }
         appendTranscript(TranscriptRole.TOOL, "Linked Focus Studio to $subjName")
         FunctionResponsePart(

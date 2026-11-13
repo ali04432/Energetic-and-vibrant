@@ -83,6 +83,7 @@ import com.example.ai.configureAppCheck
 import com.example.auth.attemptAutoSignIn
 import com.example.auth.authStateFlow
 import com.example.auth.signOutUser
+import com.example.data.model.TaskType
 import com.example.data.model.UiState
 import com.example.data.preferences.PreferencesManager
 import com.example.data.preferences.UserPreferences
@@ -100,6 +101,7 @@ import com.example.ui.navigation.SettingsRoute
 import com.example.ui.navigation.SubjectDetailRoute
 import com.example.ui.navigation.TaskDetailRoute
 import com.example.ui.navigation.TodayRoute
+import com.example.ui.navigation.WeeklySummaryRoute
 import com.example.ui.screens.AnalyticsScreen
 import com.example.ui.screens.AuthScreen
 import com.example.ui.screens.CampusMapScreen
@@ -109,6 +111,7 @@ import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SubjectDetailScreen
 import com.example.ui.screens.TaskDetailScreen
 import com.example.ui.screens.TodayScreen
+import com.example.ui.screens.WeeklySummaryScreen
 import com.example.ui.theme.StudyPulseTheme
 import com.example.ui.viewmodel.FocusTimerViewModel
 import com.example.ui.viewmodel.StudyPlannerViewModel
@@ -340,8 +343,8 @@ fun MainStudyWorkspace(
       slots = (slotsState as? UiState.Success)?.data.orEmpty(),
       tasks = (tasksState as? UiState.Success)?.data.orEmpty(),
       spots = (spotsState as? UiState.Success)?.data.orEmpty(),
-      onStartFocusTarget = { subjId, subjName, taskId, taskTitle ->
-        focusViewModel.linkStudyTarget(subjId, subjName, taskId, taskTitle)
+      onStartFocusTarget = { subjId, subjName, taskId, taskTitle, taskType ->
+        focusViewModel.linkStudyTarget(subjId, subjName, taskId, taskTitle, taskType)
         showVoiceCoach = false
         navigateTopLevel(FocusRoute)
       },
@@ -452,6 +455,7 @@ fun MainStudyWorkspace(
                   onSelectCategory = plannerViewModel::setDashboardCategory,
                   onCycleTheme = plannerViewModel::cycleThemeMode,
                   onOpenSettings = { navController.navigate(SettingsRoute) },
+                  onOpenWeeklySummary = { navController.navigate(WeeklySummaryRoute) },
                   onStartQuickFocus = { subjId, subjName, taskId, taskTitle ->
                     focusViewModel.linkStudyTarget(subjId, subjName, taskId, taskTitle)
                     navigateTopLevel(FocusRoute)
@@ -494,7 +498,13 @@ fun MainStudyWorkspace(
                   onDeleteTask = plannerViewModel::deleteTask,
                   onDeleteSlot = plannerViewModel::deleteTimetableSlot,
                   onFocusOnTask = { task ->
-                    focusViewModel.linkStudyTarget(task.subjectId, task.subjectName, task.id, task.title)
+                    focusViewModel.linkStudyTarget(
+                      subjectId = task.subjectId,
+                      subjectName = task.subjectName,
+                      taskId = task.id,
+                      taskTitle = task.title,
+                      taskType = TaskType.fromRaw(task.type),
+                    )
                     navigateTopLevel(FocusRoute)
                   },
                 )
@@ -531,6 +541,7 @@ fun MainStudyWorkspace(
                   subjectsState = subjectsState,
                   onSelectPhase = focusViewModel::selectPhase,
                   onSelectSubject = { id, name -> focusViewModel.linkStudyTarget(id, name) },
+                  onSelectTaskType = focusViewModel::selectTaskType,
                   onToggleStartPause = focusViewModel::toggleStartPause,
                   onReset = focusViewModel::resetTimer,
                   onSkip = focusViewModel::skipPhase,
@@ -545,6 +556,16 @@ fun MainStudyWorkspace(
                   sessionsState = sessionsState,
                   tasksState = tasksState,
                   subjectsState = subjectsState,
+                  onOpenWeeklySummary = { navController.navigate(WeeklySummaryRoute) },
+                )
+              }
+
+              composable<WeeklySummaryRoute> {
+                WeeklySummaryScreen(
+                  sessionsState = sessionsState,
+                  tasksState = tasksState,
+                  onBack = { navController.popBackStack() },
+                  onStartFocus = { navigateTopLevel(FocusRoute) },
                 )
               }
 
@@ -578,7 +599,13 @@ fun MainStudyWorkspace(
                   onBack = { navController.popBackStack() },
                   onToggleComplete = plannerViewModel::toggleTaskCompleted,
                   onFocusTask = { task ->
-                    focusViewModel.linkStudyTarget(task.subjectId, task.subjectName, task.id, task.title)
+                    focusViewModel.linkStudyTarget(
+                      subjectId = task.subjectId,
+                      subjectName = task.subjectName,
+                      taskId = task.id,
+                      taskTitle = task.title,
+                      taskType = TaskType.fromRaw(task.type),
+                    )
                     navigateTopLevel(FocusRoute)
                   },
                   onDeleteTask = plannerViewModel::deleteTask,

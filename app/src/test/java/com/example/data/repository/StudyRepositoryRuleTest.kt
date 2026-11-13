@@ -172,6 +172,7 @@ class StudyRepositoryRuleTest : FirestoreEmulatorTestBase() {
             subjectId = subjectId,
             subjectName = "Algorithms",
             taskId = taskId,
+            taskType = TaskType.PROJECT.name,
             durationMinutes = 25,
             todayDateKey = "2026-11-12",
             yesterdayDateKey = "2026-11-11",
@@ -179,6 +180,14 @@ class StudyRepositoryRuleTest : FirestoreEmulatorTestBase() {
         }
       }
     assertTrue(sessionId.isNotBlank())
+
+    val sessions =
+      tracedStep("observeFocusSessions") {
+        withTimeout(FLOW_TIMEOUT_MS) {
+          repo.observeFocusSessions(uid).first { list -> list.any { it.id == sessionId } }
+        }
+      }
+    assertEquals(TaskType.PROJECT.name, sessions.first { it.id == sessionId }.taskType)
 
     val stats =
       tracedStep("observeUserStats") {

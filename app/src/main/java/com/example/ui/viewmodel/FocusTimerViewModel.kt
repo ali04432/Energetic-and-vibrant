@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.model.TaskType
 import com.example.data.repository.StudyRepository
 import com.example.notifications.NotificationHelper
 import java.text.SimpleDateFormat
@@ -37,6 +38,7 @@ data class FocusTimerUiState(
   val linkedSubjectName: String = "General Study",
   val linkedTaskId: String = "",
   val linkedTaskTitle: String = "",
+  val selectedTaskType: TaskType = TaskType.ASSIGNMENT,
   val showCelebration: Boolean = false,
   val lastLoggedMinutes: Int = 0,
   val statusMessage: String? = null,
@@ -110,6 +112,7 @@ class FocusTimerViewModel(
     subjectName: String,
     taskId: String = "",
     taskTitle: String = "",
+    taskType: TaskType? = null,
   ) {
     _uiState.update {
       it.copy(
@@ -117,8 +120,13 @@ class FocusTimerViewModel(
         linkedSubjectName = subjectName.ifBlank { "General Study" },
         linkedTaskId = taskId,
         linkedTaskTitle = taskTitle,
+        selectedTaskType = taskType ?: it.selectedTaskType,
       )
     }
+  }
+
+  fun selectTaskType(taskType: TaskType) {
+    _uiState.update { it.copy(selectedTaskType = taskType) }
   }
 
   fun toggleStartPause() {
@@ -258,6 +266,7 @@ class FocusTimerViewModel(
           subjectId = snapshot.linkedSubjectId,
           subjectName = snapshot.linkedSubjectName,
           taskId = snapshot.linkedTaskId,
+          taskType = snapshot.selectedTaskType.name,
           durationMinutes = minutes,
           todayDateKey = todayKey,
           yesterdayDateKey = yesterdayKey,

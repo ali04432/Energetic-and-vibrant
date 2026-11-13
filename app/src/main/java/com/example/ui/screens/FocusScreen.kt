@@ -35,6 +35,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -56,8 +57,12 @@ import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.R
 import com.example.data.model.Subject
+import com.example.data.model.TaskType
 import com.example.data.model.UiState
 import com.example.ui.components.AnimatedFocusProgressRing
+import com.example.ui.components.TaskCategoryBadge
+import com.example.ui.components.adaptiveCategoryColor
+import com.example.ui.components.categoryIcon
 import com.example.ui.viewmodel.FocusPhase
 import com.example.ui.viewmodel.FocusTimerUiState
 
@@ -68,6 +73,7 @@ fun FocusScreen(
   subjectsState: UiState<List<Subject>>,
   onSelectPhase: (FocusPhase) -> Unit,
   onSelectSubject: (subjectId: String, subjectName: String) -> Unit,
+  onSelectTaskType: (TaskType) -> Unit,
   onToggleStartPause: () -> Unit,
   onReset: () -> Unit,
   onSkip: () -> Unit,
@@ -174,11 +180,17 @@ fun FocusScreen(
             }
 
             if (timerState.linkedTaskTitle.isNotBlank()) {
-              Text(
-                text = "Task: ${timerState.linkedTaskTitle}",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.secondary,
-              )
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+              ) {
+                TaskCategoryBadge(typeRaw = timerState.selectedTaskType.name)
+                Text(
+                  text = "Task: ${timerState.linkedTaskTitle}",
+                  style = MaterialTheme.typography.titleSmall,
+                  color = MaterialTheme.colorScheme.secondary,
+                )
+              }
             }
 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -192,6 +204,38 @@ fun FocusScreen(
                   selected = timerState.linkedSubjectId == subject.id,
                   onClick = { onSelectSubject(subject.id, subject.name) },
                   label = { Text(subject.name) },
+                )
+              }
+            }
+
+            Text(
+              text = "Study Category",
+              style = MaterialTheme.typography.labelLarge,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              TaskType.entries.forEach { type ->
+                val tint = type.adaptiveCategoryColor()
+                val isSelected = timerState.selectedTaskType == type
+                FilterChip(
+                  selected = isSelected,
+                  onClick = { onSelectTaskType(type) },
+                  leadingIcon = {
+                    Icon(
+                      imageVector = type.categoryIcon(),
+                      contentDescription = null,
+                      modifier = Modifier.size(16.dp),
+                    )
+                  },
+                  colors =
+                    FilterChipDefaults.filterChipColors(
+                      selectedContainerColor = tint.copy(alpha = 0.16f),
+                      selectedLabelColor = tint,
+                      selectedLeadingIconColor = tint,
+                    ),
+                  label = { Text(type.label) },
+                  modifier = Modifier.testTag("focus_category_${type.name.lowercase()}"),
                 )
               }
             }
@@ -285,7 +329,7 @@ fun FocusScreen(
           )
           Spacer(modifier = Modifier.height(6.dp))
           Text(
-            text = "+${timerState.lastLoggedMinutes} min logged for ${timerState.linkedSubjectName}. Your daily streak is updated!",
+            text = "+${timerState.lastLoggedMinutes} min logged for ${timerState.linkedSubjectName} (${timerState.selectedTaskType.label}). Your daily streak is updated!",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
