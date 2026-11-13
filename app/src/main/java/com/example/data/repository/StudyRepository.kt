@@ -3,6 +3,7 @@ package com.example.data.repository
 import android.content.Context
 import com.example.R
 import com.example.data.model.FocusSession
+import com.example.data.model.StudySpot
 import com.example.data.model.StudyTask
 import com.example.data.model.Subject
 import com.example.data.model.TimetableSlot
@@ -41,6 +42,8 @@ class StudyRepository(private val db: FirebaseFirestore) {
   private fun tasksCol(userId: String) = userDoc(userId).collection("tasks")
 
   private fun sessionsCol(userId: String) = userDoc(userId).collection("sessions")
+
+  private fun spotsCol(userId: String) = userDoc(userId).collection("spots")
 
   private fun logIfActiveUser(error: Throwable, op: OperationType, path: String, userId: String) {
     val firestoreError =
@@ -121,6 +124,21 @@ class StudyRepository(private val db: FirebaseFirestore) {
         snapshot
           .toObjects(FocusSession::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
           .sortedByDescending { it.completedAt?.seconds ?: 0L }
+      }
+      .catch { error ->
+        logIfActiveUser(error, OperationType.LIST, col.path, userId)
+        throw error
+      }
+  }
+
+  fun observeStudySpots(userId: String): Flow<List<StudySpot>> {
+    val col = spotsCol(userId)
+    return col
+      .snapshots()
+      .map { snapshot ->
+        snapshot
+          .toObjects(StudySpot::class.java, DocumentSnapshot.ServerTimestampBehavior.ESTIMATE)
+          .sortedBy { it.name.lowercase() }
       }
       .catch { error ->
         logIfActiveUser(error, OperationType.LIST, col.path, userId)
@@ -449,6 +467,53 @@ class StudyRepository(private val db: FirebaseFirestore) {
       throw e
     } catch (e: Exception) {
       handleFirestoreError(e, OperationType.WRITE, sessionRef.path, auth)
+      throw e
+    }
+  }
+
+  suspend fun addStudySpot(
+    userId: String,
+    name: String,
+    category: String,
+    address: String,
+    notes: String,
+    subjectId: String,
+    latitude: Double,
+    longitude: Double,
+  ): String {
+    val docRef = spotsCol(userId).document()
+    val payload =
+      mapOf(
+        "userId" to userId,
+        "name" to name.trim().take(80),
+        "category" to category,
+        "address" to address.trim().take(200),
+        "notes" to notes.trim().take(300),
+        "subjectId" to subjectId,
+        "latitude" to latitude.coerceIn(-90.0, 90.0),
+        "longitude" to longitude.coerceIn(-180.0, 180.0),
+        "createdAt" to FieldValue.serverTimestamp(),
+        "updatedAt" to FieldValue.serverTimestamp(),
+      )
+    try {
+      docRef.set(payload).await()
+      return docRef.id
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      handleFirestoreError(e, OperationType.CREATE, docRef.path, auth)
+      throw e
+    }
+  }
+
+  suspend fun deleteStudySpot(userId: String, spotId: String) {
+    val docRef = spotsCol(userId).document(spotId)
+    try {
+      docRef.delete().await()
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      handleFirestoreError(e, OperationType.DELETE, docRef.path, auth)
       throw e
     }
   }

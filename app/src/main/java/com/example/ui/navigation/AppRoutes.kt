@@ -9,6 +9,9 @@ data object TodayRoute
 data object PlannerRoute
 
 @Serializable
+data object MapRoute
+
+@Serializable
 data object FocusRoute
 
 @Serializable

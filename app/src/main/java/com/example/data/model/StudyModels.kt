@@ -91,3 +91,26 @@ data class FocusSession(
   val dateKey: String = "",
   @ServerTimestamp val completedAt: Timestamp? = null,
 )
+
+enum class SpotCategory(val label: String) {
+  CLASSROOM("Classrooms"),
+  LIBRARY("Libraries"),
+  CAFE("Quiet Cafes"),
+  EXAM_HALL("Exam Halls"),
+}
+
+@IgnoreExtraProperties
+data class StudySpot(
+  @DocumentId val id: String = "",
+  val userId: String = "",
+  val name: String = "",
+  val category: String = SpotCategory.LIBRARY.name,
+  val address: String = "",
+  val notes: String = "",
+  val subjectId: String = "",
+  val latitude: Double = 0.0,
+  val longitude: Double = 0.0,
+  @ServerTimestamp val createdAt: Timestamp? = null,
+  @ServerTimestamp val updatedAt: Timestamp? = null,
+)
+

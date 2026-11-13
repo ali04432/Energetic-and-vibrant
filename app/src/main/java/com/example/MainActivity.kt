@@ -10,8 +10,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -27,12 +32,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoGraph
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.rounded.AutoGraph
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
@@ -68,6 +79,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.example.ai.configureAppCheck
 import com.example.auth.attemptAutoSignIn
 import com.example.auth.authStateFlow
 import com.example.auth.signOutUser
@@ -79,8 +91,10 @@ import com.example.notifications.NotificationHelper
 import com.example.ui.components.AddSubjectDialog
 import com.example.ui.components.AddTaskDialog
 import com.example.ui.components.AddTimetableSlotDialog
+import com.example.ui.components.LiveVoiceCoachOverlay
 import com.example.ui.navigation.AnalyticsRoute
 import com.example.ui.navigation.FocusRoute
+import com.example.ui.navigation.MapRoute
 import com.example.ui.navigation.PlannerRoute
 import com.example.ui.navigation.SettingsRoute
 import com.example.ui.navigation.SubjectDetailRoute
@@ -88,6 +102,7 @@ import com.example.ui.navigation.TaskDetailRoute
 import com.example.ui.navigation.TodayRoute
 import com.example.ui.screens.AnalyticsScreen
 import com.example.ui.screens.AuthScreen
+import com.example.ui.screens.CampusMapScreen
 import com.example.ui.screens.FocusScreen
 import com.example.ui.screens.PlannerScreen
 import com.example.ui.screens.SettingsScreen
@@ -97,6 +112,8 @@ import com.example.ui.screens.TodayScreen
 import com.example.ui.theme.StudyPulseTheme
 import com.example.ui.viewmodel.FocusTimerViewModel
 import com.example.ui.viewmodel.StudyPlannerViewModel
+import com.example.ui.viewmodel.VoiceCoachViewModel
+import com.example.ui.viewmodel.VoiceSessionStatus
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -104,6 +121,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    configureAppCheck(this, intent)
     enableEdgeToEdge()
     NotificationHelper.ensureChannels(this)
     setContent {
@@ -217,16 +235,37 @@ fun MainStudyWorkspace(
         },
     )
 
+  val voiceViewModel: VoiceCoachViewModel =
+    viewModel(
+      key = "voice_$currentUserId",
+      factory =
+        viewModelFactory {
+          initializer {
+            val app = checkNotNull(this[APPLICATION_KEY])
+            val databaseId = app.getString(R.string.firestore_database_id)
+            val db = FirebaseFirestore.getInstance(databaseId)
+            VoiceCoachViewModel(
+              repository = StudyRepository(db),
+              appContext = app.applicationContext,
+              currentUserId = currentUserId,
+              displayName = displayName,
+            )
+          }
+        },
+    )
+
   val userStatsState by plannerViewModel.userStatsState.collectAsStateWithLifecycle()
   val subjectsState by plannerViewModel.subjectsState.collectAsStateWithLifecycle()
   val slotsState by plannerViewModel.slotsState.collectAsStateWithLifecycle()
   val tasksState by plannerViewModel.tasksState.collectAsStateWithLifecycle()
+  val spotsState by plannerViewModel.spotsState.collectAsStateWithLifecycle()
   val sessionsState by plannerViewModel.sessionsState.collectAsStateWithLifecycle()
   val preferences by plannerViewModel.preferences.collectAsStateWithLifecycle()
   val selectedDay by plannerViewModel.selectedDayOfWeek.collectAsStateWithLifecycle()
   val selectedFilter by plannerViewModel.selectedTaskFilter.collectAsStateWithLifecycle()
   val actionMessage by plannerViewModel.actionMessage.collectAsStateWithLifecycle()
   val timerState by focusViewModel.uiState.collectAsStateWithLifecycle()
+  val voiceState by voiceViewModel.uiState.collectAsStateWithLifecycle()
 
   LaunchedEffect(preferences.focusMinutes, preferences.shortBreakMinutes, preferences.longBreakMinutes) {
     focusViewModel.syncDurations(
@@ -261,6 +300,7 @@ fun MainStudyWorkspace(
   var showAddSubject by remember { mutableStateOf(false) }
   var showAddSlot by remember { mutableStateOf(false) }
   var showAddTask by remember { mutableStateOf(false) }
+  var showVoiceCoach by remember { mutableStateOf(false) }
 
   val navController = rememberNavController()
   val backStackEntry by navController.currentBackStackEntryAsState()
@@ -271,6 +311,7 @@ fun MainStudyWorkspace(
       listOf(
         TopLevelDestination(TodayRoute, "Today", Icons.Rounded.Home, Icons.Outlined.Home, "nav_today"),
         TopLevelDestination(PlannerRoute, "Planner", Icons.Rounded.CalendarMonth, Icons.Outlined.CalendarMonth, "nav_planner"),
+        TopLevelDestination(MapRoute, "Map", Icons.Rounded.Map, Icons.Outlined.Map, "nav_map"),
         TopLevelDestination(FocusRoute, "Focus", Icons.Rounded.Timer, Icons.Outlined.Timer, "nav_focus"),
         TopLevelDestination(AnalyticsRoute, "Insights", Icons.Rounded.AutoGraph, Icons.Outlined.AutoGraph, "nav_analytics"),
       )
@@ -280,6 +321,7 @@ fun MainStudyWorkspace(
     currentDest == null ||
       currentDest.hasRoute<TodayRoute>() ||
       currentDest.hasRoute<PlannerRoute>() ||
+      currentDest.hasRoute<MapRoute>() ||
       currentDest.hasRoute<FocusRoute>() ||
       currentDest.hasRoute<AnalyticsRoute>()
 
@@ -289,6 +331,20 @@ fun MainStudyWorkspace(
       launchSingleTop = true
       restoreState = true
     }
+  }
+
+  LaunchedEffect(subjectsState, slotsState, tasksState, spotsState) {
+    voiceViewModel.updateLiveContext(
+      subjects = (subjectsState as? UiState.Success)?.data.orEmpty(),
+      slots = (slotsState as? UiState.Success)?.data.orEmpty(),
+      tasks = (tasksState as? UiState.Success)?.data.orEmpty(),
+      spots = (spotsState as? UiState.Success)?.data.orEmpty(),
+      onStartFocusTarget = { subjId, subjName, taskId, taskTitle ->
+        focusViewModel.linkStudyTarget(subjId, subjName, taskId, taskTitle)
+        showVoiceCoach = false
+        navigateTopLevel(FocusRoute)
+      },
+    )
   }
 
   BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -304,6 +360,7 @@ fun MainStudyWorkspace(
               when (dest.route) {
                 is TodayRoute -> currentDest?.hasRoute<TodayRoute>() == true
                 is PlannerRoute -> currentDest?.hasRoute<PlannerRoute>() == true
+                is MapRoute -> currentDest?.hasRoute<MapRoute>() == true
                 is FocusRoute -> currentDest?.hasRoute<FocusRoute>() == true
                 is AnalyticsRoute -> currentDest?.hasRoute<AnalyticsRoute>() == true
                 else -> false
@@ -323,6 +380,27 @@ fun MainStudyWorkspace(
         modifier = Modifier.weight(1f).fillMaxHeight(),
         contentWindowInsets = WindowInsets.safeDrawing,
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+          if (showTopLevelNav) {
+            val isLiveActive = voiceState.isSessionActive && voiceState.status != VoiceSessionStatus.IDLE
+            FloatingActionButton(
+              onClick = { showVoiceCoach = true },
+              containerColor =
+                if (isLiveActive) MaterialTheme.colorScheme.tertiary
+                else MaterialTheme.colorScheme.secondary,
+              contentColor =
+                if (isLiveActive) MaterialTheme.colorScheme.onTertiary
+                else MaterialTheme.colorScheme.onSecondary,
+              elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+              modifier = Modifier.testTag("floating_voice_coach_button"),
+            ) {
+              Icon(
+                imageVector = Icons.Rounded.GraphicEq,
+                contentDescription = "Open Live Voice Study Coach",
+              )
+            }
+          }
+        },
         bottomBar = {
           if (!useNavRail && showTopLevelNav) {
             NavigationBar(windowInsets = WindowInsets.navigationBars) {
@@ -331,6 +409,7 @@ fun MainStudyWorkspace(
                   when (dest.route) {
                     is TodayRoute -> currentDest?.hasRoute<TodayRoute>() == true
                     is PlannerRoute -> currentDest?.hasRoute<PlannerRoute>() == true
+                    is MapRoute -> currentDest?.hasRoute<MapRoute>() == true
                     is FocusRoute -> currentDest?.hasRoute<FocusRoute>() == true
                     is AnalyticsRoute -> currentDest?.hasRoute<AnalyticsRoute>() == true
                     else -> false
@@ -418,6 +497,31 @@ fun MainStudyWorkspace(
                 )
               }
 
+              composable<MapRoute> {
+                CampusMapScreen(
+                  themeMode = preferences.themeMode,
+                  spotsState = spotsState,
+                  subjectsState = subjectsState,
+                  slotsState = slotsState,
+                  onAddStudySpot = { name, category, address, notes, subjectId, lat, lng ->
+                    plannerViewModel.addStudySpot(
+                      name = name,
+                      category = category,
+                      address = address,
+                      notes = notes,
+                      subjectId = subjectId,
+                      latitude = lat,
+                      longitude = lng,
+                    )
+                  },
+                  onDeleteStudySpot = plannerViewModel::deleteStudySpot,
+                  onFocusHere = { subjId, subjName ->
+                    focusViewModel.linkStudyTarget(subjId, subjName)
+                    navigateTopLevel(FocusRoute)
+                  },
+                )
+              }
+
               composable<FocusRoute> {
                 FocusScreen(
                   timerState = timerState,
@@ -496,6 +600,22 @@ fun MainStudyWorkspace(
           }
         }
       }
+    }
+
+    AnimatedVisibility(
+      visible = showVoiceCoach,
+      enter = fadeIn() + slideInVertically { it / 8 },
+      exit = fadeOut() + slideOutVertically { it / 8 },
+    ) {
+      LiveVoiceCoachOverlay(
+        state = voiceState,
+        onSelectVoice = voiceViewModel::selectVoice,
+        onStartVoice = voiceViewModel::startVoiceSession,
+        onStopVoice = voiceViewModel::stopVoiceSession,
+        onSendText = voiceViewModel::sendTextMessage,
+        onDismissError = voiceViewModel::clearError,
+        onCloseOverlay = { showVoiceCoach = false },
+      )
     }
   }
 

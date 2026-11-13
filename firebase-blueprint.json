@@ -152,6 +152,35 @@
         "dateKey",
         "completedAt"
       ]
+    },
+    "StudySpot": {
+      "title": "StudySpot",
+      "description": "Campus classroom, library, quiet cafe, or exam hall pinned on Google Maps.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["CLASSROOM", "LIBRARY", "CAFE", "EXAM_HALL"] },
+        "address": { "type": "string" },
+        "notes": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "name",
+        "category",
+        "address",
+        "notes",
+        "subjectId",
+        "latitude",
+        "longitude",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -174,6 +203,10 @@
     "/users/{userId}/sessions/{sessionId}": {
       "schema": { "$ref": "#/entities/FocusSession" },
       "description": "User's completed Pomodoro focus sessions."
+    },
+    "/users/{userId}/spots/{spotId}": {
+      "schema": { "$ref": "#/entities/StudySpot" },
+      "description": "User's pinned campus classes and study spots."
     }
   }
 }

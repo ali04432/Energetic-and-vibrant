@@ -213,3 +213,43 @@ test("Focus sessions are immutable once created", async () => {
     })
   );
 });
+
+test("Authenticated user can create and delete study spots; invalid coords or cross-user access fails", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
+  const now = pastDate();
+
+  await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).collection("spots").doc("spot_lib").set({
+      userId: ALICE_UID,
+      name: "Central Science Library",
+      category: "LIBRARY",
+      address: "100 Campus Way",
+      notes: "3rd floor quiet zone",
+      subjectId: "subj_1",
+      latitude: 37.4275,
+      longitude: -122.1697,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  await assertFails(
+    aliceDb.collection("users").doc(ALICE_UID).collection("spots").doc("spot_bad").set({
+      userId: ALICE_UID,
+      name: "Invalid Latitude",
+      category: "CAFE",
+      address: "",
+      notes: "",
+      subjectId: "",
+      latitude: 120.0,
+      longitude: 0.0,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+
+  await assertFails(bobDb.collection("users").doc(ALICE_UID).collection("spots").get());
+  await assertSucceeds(aliceDb.collection("users").doc(ALICE_UID).collection("spots").doc("spot_lib").delete());
+});
+

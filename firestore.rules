@@ -87,6 +87,19 @@ service cloud.firestore {
              data.completedAt is timestamp && data.completedAt <= request.time;
     }
 
+    function isValidStudySpot(data, userId) {
+      return data.userId is string && data.userId == userId &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+             data.category is string && (data.category == 'CLASSROOM' || data.category == 'LIBRARY' || data.category == 'CAFE' || data.category == 'EXAM_HALL') &&
+             data.address is string && data.address.size() <= 200 &&
+             data.notes is string && data.notes.size() <= 300 &&
+             data.subjectId is string && data.subjectId.size() <= 128 &&
+             data.latitude is number && data.latitude >= -90.0 && data.latitude <= 90.0 &&
+             data.longitude is number && data.longitude >= -180.0 && data.longitude <= 180.0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
       allow list: if false;
@@ -178,6 +191,26 @@ service cloud.firestore {
 
         allow update: if false;
         allow delete: if isOwner(userId) && isValidId(sessionId);
+      }
+
+      match /spots/{spotId} {
+        allow get: if isOwner(userId) && isValidId(spotId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(spotId) &&
+                         incoming().keys().hasAll(['userId', 'name', 'category', 'address', 'notes', 'subjectId', 'latitude', 'longitude', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'name', 'category', 'address', 'notes', 'subjectId', 'latitude', 'longitude', 'createdAt', 'updatedAt']) &&
+                         isValidStudySpot(incoming(), userId);
+
+        allow update: if isOwner(userId) &&
+                         isValidId(spotId) &&
+                         isValidStudySpot(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'address', 'notes', 'subjectId', 'latitude', 'longitude', 'updatedAt']);
+
+        allow delete: if isOwner(userId) && isValidId(spotId);
       }
     }
   }

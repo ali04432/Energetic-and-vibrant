@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.FocusSession
+import com.example.data.model.StudySpot
 import com.example.data.model.StudyTask
 import com.example.data.model.Subject
 import com.example.data.model.TimetableSlot
@@ -87,6 +88,9 @@ class StudyPlannerViewModel(
 
   val sessionsState: StateFlow<UiState<List<FocusSession>>> =
     repository.observeFocusSessions(currentUserId).toUiStateFlow()
+
+  val spotsState: StateFlow<UiState<List<StudySpot>>> =
+    repository.observeStudySpots(currentUserId).toUiStateFlow()
 
   val preferences: StateFlow<UserPreferences> =
     preferencesManager.preferencesFlow.stateIn(
@@ -344,6 +348,53 @@ class StudyPlannerViewModel(
         throw e
       } catch (e: Exception) {
         _actionMessage.value = e.localizedMessage ?: "Failed to delete task"
+      }
+    }
+  }
+
+  fun addStudySpot(
+    name: String,
+    category: String,
+    address: String,
+    notes: String,
+    subjectId: String,
+    latitude: Double,
+    longitude: Double,
+  ) {
+    if (name.isBlank()) {
+      _actionMessage.value = "Location name is required"
+      return
+    }
+    viewModelScope.launch {
+      try {
+        repository.addStudySpot(
+          userId = currentUserId,
+          name = name,
+          category = category,
+          address = address,
+          notes = notes,
+          subjectId = subjectId,
+          latitude = latitude,
+          longitude = longitude,
+        )
+        _actionMessage.value = "Pinned \"$name\" to Campus Map"
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        _actionMessage.value = e.localizedMessage ?: "Failed to pin study spot"
+      }
+    }
+  }
+
+  fun deleteStudySpot(spotId: String) {
+    viewModelScope.launch {
+      try {
+        repository.deleteStudySpot(currentUserId, spotId)
+        _actionMessage.value = "Removed study spot pin"
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        _actionMessage.value = e.localizedMessage ?: "Failed to remove study spot"
       }
     }
   }

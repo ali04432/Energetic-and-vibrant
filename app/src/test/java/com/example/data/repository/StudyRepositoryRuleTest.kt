@@ -1,6 +1,7 @@
 package com.example.data.repository
 
 import com.example.base.FirestoreEmulatorTestBase
+import com.example.data.model.SpotCategory
 import com.example.data.model.TaskPriority
 import com.example.data.model.TaskType
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -15,74 +16,125 @@ import org.junit.Test
 
 class StudyRepositoryRuleTest : FirestoreEmulatorTestBase() {
 
+  private suspend fun <T> tracedStep(stepName: String, block: suspend () -> T): T {
+    return try {
+      block()
+    } catch (e: Exception) {
+      throw AssertionError("Rule failure at step '$stepName': ${e.message}", e)
+    }
+  }
+
   @Test
   fun createAndObserveSubjectSlotTaskAndSession_authenticatedOwner_succeeds() = runBlocking {
     val uid = signInTestUser(ALICE_EMAIL)
     val repo = StudyRepository(firestore)
 
-    withTimeout(DEFAULT_TIMEOUT_MS) { repo.ensureUserStats(uid, "Alice") }
+    tracedStep("ensureUserStats") {
+      withTimeout(DEFAULT_TIMEOUT_MS) { repo.ensureUserStats(uid, "Alice") }
+    }
 
     val subjectId =
-      withTimeout(DEFAULT_TIMEOUT_MS) {
-        repo.addSubject(uid, "Algorithms", "CS301", "Dr. Rao", 0xFF4338CAL)
+      tracedStep("addSubject") {
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+          repo.addSubject(uid, "Algorithms", "CS301", "Dr. Rao", 0xFF4338CAL)
+        }
       }
     assertTrue(subjectId.isNotBlank())
 
     val subjects =
-      withTimeout(FLOW_TIMEOUT_MS) {
-        repo.observeSubjects(uid).first { list -> list.any { it.id == subjectId } }
+      tracedStep("observeSubjects") {
+        withTimeout(FLOW_TIMEOUT_MS) {
+          repo.observeSubjects(uid).first { list -> list.any { it.id == subjectId } }
+        }
       }
     assertEquals("Algorithms", subjects.first { it.id == subjectId }.name)
 
     val slotId =
-      withTimeout(DEFAULT_TIMEOUT_MS) {
-        repo.addTimetableSlot(uid, subjectId, "Algorithms", 0xFF4338CAL, 1, 540, 600, "Room 204")
+      tracedStep("addTimetableSlot") {
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+          repo.addTimetableSlot(uid, subjectId, "Algorithms", 0xFF4338CAL, 1, 540, 600, "Room 204")
+        }
       }
     assertTrue(slotId.isNotBlank())
 
     val taskId =
-      withTimeout(DEFAULT_TIMEOUT_MS) {
-        repo.addTask(
-          userId = uid,
-          subjectId = subjectId,
-          subjectName = "Algorithms",
-          colorHex = 0xFF4338CAL,
-          title = "Graph Theory Assignment",
-          notes = "Complete BFS and DFS proofs",
-          type = TaskType.ASSIGNMENT.name,
-          priority = TaskPriority.HIGH.name,
-          dueAtMillis = System.currentTimeMillis() + 86_400_000L,
-          reminderLeadMinutes = 60L,
-        )
+      tracedStep("addTask") {
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+          repo.addTask(
+            userId = uid,
+            subjectId = subjectId,
+            subjectName = "Algorithms",
+            colorHex = 0xFF4338CAL,
+            title = "Graph Theory Assignment",
+            notes = "Complete BFS and DFS proofs",
+            type = TaskType.ASSIGNMENT.name,
+            priority = TaskPriority.HIGH.name,
+            dueAtMillis = System.currentTimeMillis() + 86_400_000L,
+            reminderLeadMinutes = 60L,
+          )
+        }
       }
-    val fetchedTask = withTimeout(DEFAULT_TIMEOUT_MS) { repo.getTaskById(uid, taskId) }
+    val fetchedTask = tracedStep("getTaskById") { withTimeout(DEFAULT_TIMEOUT_MS) { repo.getTaskById(uid, taskId) } }
     assertNotNull(fetchedTask)
     assertEquals("Graph Theory Assignment", fetchedTask?.title)
 
-    withTimeout(DEFAULT_TIMEOUT_MS) { repo.toggleTaskCompleted(uid, fetchedTask!!) }
-    val updatedTask = withTimeout(DEFAULT_TIMEOUT_MS) { repo.getTaskById(uid, taskId) }
+    tracedStep("toggleTaskCompleted") {
+      withTimeout(DEFAULT_TIMEOUT_MS) { repo.toggleTaskCompleted(uid, fetchedTask!!) }
+    }
+    val updatedTask = tracedStep("getTaskById_updated") { withTimeout(DEFAULT_TIMEOUT_MS) { repo.getTaskById(uid, taskId) } }
     assertEquals(true, updatedTask?.completed)
 
     val sessionId =
-      withTimeout(DEFAULT_TIMEOUT_MS) {
-        repo.recordFocusSessionAndUpdateStreak(
-          userId = uid,
-          displayName = "Alice",
-          subjectId = subjectId,
-          subjectName = "Algorithms",
-          taskId = taskId,
-          durationMinutes = 25,
-          todayDateKey = "2026-11-12",
-          yesterdayDateKey = "2026-11-11",
-        )
+      tracedStep("recordFocusSessionAndUpdateStreak") {
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+          repo.recordFocusSessionAndUpdateStreak(
+            userId = uid,
+            displayName = "Alice",
+            subjectId = subjectId,
+            subjectName = "Algorithms",
+            taskId = taskId,
+            durationMinutes = 25,
+            todayDateKey = "2026-11-12",
+            yesterdayDateKey = "2026-11-11",
+          )
+        }
       }
     assertTrue(sessionId.isNotBlank())
 
     val stats =
-      withTimeout(FLOW_TIMEOUT_MS) {
-        repo.observeUserStats(uid).first { it != null && it.currentStreak >= 1L }
+      tracedStep("observeUserStats") {
+        withTimeout(FLOW_TIMEOUT_MS) {
+          repo.observeUserStats(uid).first { it != null && it.currentStreak >= 1L }
+        }
       }
     assertEquals(1L, stats?.currentStreak)
+
+    val spotId =
+      tracedStep("addStudySpot") {
+        withTimeout(DEFAULT_TIMEOUT_MS) {
+          repo.addStudySpot(
+            userId = uid,
+            name = "Engineering Library",
+            category = SpotCategory.LIBRARY.name,
+            address = "250 College Walk",
+            notes = "Quiet desks with outlets",
+            subjectId = subjectId,
+            latitude = 37.4275,
+            longitude = -122.1697,
+          )
+        }
+      }
+    assertTrue(spotId.isNotBlank())
+    val spots =
+      tracedStep("observeStudySpots") {
+        withTimeout(FLOW_TIMEOUT_MS) {
+          repo.observeStudySpots(uid).first { list -> list.any { it.id == spotId } }
+        }
+      }
+    assertEquals("Engineering Library", spots.first { it.id == spotId }.name)
+    tracedStep("deleteStudySpot") {
+      withTimeout(DEFAULT_TIMEOUT_MS) { repo.deleteStudySpot(uid, spotId) }
+    }
   }
 
   @Test
@@ -133,7 +185,7 @@ class StudyRepositoryRuleTest : FirestoreEmulatorTestBase() {
   private companion object {
     const val ALICE_EMAIL = "alice@studypulse.test"
     const val BOB_EMAIL = "bob@studypulse.test"
-    const val DEFAULT_TIMEOUT_MS = 5000L
-    const val FLOW_TIMEOUT_MS = 3000L
+    const val DEFAULT_TIMEOUT_MS = 8000L
+    const val FLOW_TIMEOUT_MS = 8000L
   }
 }

@@ -44,6 +44,8 @@ lottieCompose = "6.7.1"
 mpandroidchart = "v4.0.1"
 workRuntimeKtx = "2.10.0"
 kotlinxSerializationJson = "1.7.3"
+mapsCompose = "6.5.2"
+playServicesMaps = "19.0.0"
 
 
 [libraries]
@@ -102,6 +104,8 @@ lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", versio
 mpandroidchart = { group = "com.github.PhilJay.MPAndroidChart", name = "MPChartLib", version.ref = "mpandroidchart" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workRuntimeKtx" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
+maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
+play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
 
 
 [plugins]
