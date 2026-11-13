@@ -25,12 +25,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -41,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -48,6 +51,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.data.model.StudyTask
 import com.example.data.model.Subject
@@ -65,6 +70,7 @@ import com.example.ui.components.dayLabelShort
 import com.example.ui.components.formatDueSummary
 import com.example.ui.components.formatMinutesOfDay
 import com.example.ui.theme.ThemeMode
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
@@ -216,6 +222,7 @@ fun TaskDetailScreen(
   onBack: () -> Unit,
   onToggleComplete: (StudyTask) -> Unit,
   onFocusTask: (StudyTask) -> Unit,
+  onResearchTask: (StudyTask) -> Unit,
   onDeleteTask: (String) -> Unit,
 ) {
   Column(modifier = Modifier.fillMaxSize()) {
@@ -318,6 +325,16 @@ fun TaskDetailScreen(
                   Text(if (task.completed) "Reopen" else "Complete")
                 }
               }
+
+              OutlinedButton(
+                onClick = { onResearchTask(task) },
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("task_detail_research_button"),
+              ) {
+                Icon(Icons.Rounded.TravelExplore, contentDescription = null)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Research Topic with Google Search AI")
+              }
             }
           }
         }
@@ -334,14 +351,22 @@ fun SettingsScreen(
   onBack: () -> Unit,
   onSelectTheme: (ThemeMode) -> Unit,
   onSaveDurations: (focus: Int, shortBreak: Int, longBreak: Int) -> Unit,
-  onUpdateDailyGoal: (Int) -> Unit,
+  onUpdateDailyGoalHours: (Double) -> Unit,
   onUpdateReminderLead: (Long) -> Unit,
   onSignOut: () -> Unit,
 ) {
   var focusSlider by remember(preferences.focusMinutes) { mutableIntStateOf(preferences.focusMinutes) }
   var shortSlider by remember(preferences.shortBreakMinutes) { mutableIntStateOf(preferences.shortBreakMinutes) }
   var longSlider by remember(preferences.longBreakMinutes) { mutableIntStateOf(preferences.longBreakMinutes) }
-  var goalSlider by remember(dailyGoalMinutes) { mutableIntStateOf(dailyGoalMinutes) }
+  var goalHoursText by
+    remember(dailyGoalMinutes) {
+      val hrs = (dailyGoalMinutes / 60.0).coerceIn(0.25, 12.0)
+      mutableStateOf(
+        if (hrs % 1.0 == 0.0) hrs.toInt().toString() else String.format(Locale.US, "%.1f", hrs)
+      )
+    }
+  val parsedGoalHours = goalHoursText.trim().toDoubleOrNull()
+  val isGoalValid = parsedGoalHours != null && parsedGoalHours in 0.25..12.0
 
   Column(modifier = Modifier.fillMaxSize()) {
     TopAppBar(
@@ -424,16 +449,38 @@ fun SettingsScreen(
           modifier = Modifier.fillMaxWidth(),
         ) {
           Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Daily Study Target: $goalSlider min", style = MaterialTheme.typography.titleMedium)
+            val previewHrs = parsedGoalHours ?: (dailyGoalMinutes / 60.0)
+            Text(
+              text = String.format(Locale.US, "Daily Study Target: %.1f hrs/day", previewHrs),
+              style = MaterialTheme.typography.titleMedium,
+            )
+            OutlinedTextField(
+              value = goalHoursText,
+              onValueChange = { raw ->
+                if (raw.length <= 5 && raw.all { it.isDigit() || it == '.' }) {
+                  goalHoursText = raw
+                }
+              },
+              label = { Text("Target Study Hours (0.25 – 12.0)") },
+              suffix = { Text("hrs") },
+              singleLine = true,
+              isError = goalHoursText.isNotBlank() && !isGoalValid,
+              keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+              modifier = Modifier.fillMaxWidth().testTag("settings_daily_goal_hours_input"),
+            )
             Slider(
-              value = goalSlider.toFloat(),
-              onValueChange = { goalSlider = (it / 15f).roundToInt() * 15 },
-              valueRange = 30f..240f,
+              value = (parsedGoalHours ?: 1.0).toFloat().coerceIn(0.5f, 12f),
+              onValueChange = { raw ->
+                val snapped = (raw * 2f).roundToInt() / 2.0
+                goalHoursText = String.format(Locale.US, "%.1f", snapped)
+              },
+              valueRange = 0.5f..12f,
             )
             Button(
-              onClick = { onUpdateDailyGoal(goalSlider) },
+              onClick = { parsedGoalHours?.let(onUpdateDailyGoalHours) },
+              enabled = isGoalValid,
               shape = RoundedCornerShape(14.dp),
-              modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+              modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("settings_save_daily_goal_button"),
             ) {
               Text("Save Daily Goal")
             }

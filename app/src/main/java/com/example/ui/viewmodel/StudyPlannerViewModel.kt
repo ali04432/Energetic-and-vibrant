@@ -172,6 +172,21 @@ class StudyPlannerViewModel(
     }
   }
 
+  fun updateDailyGoalHours(targetHours: Double) {
+    val minutes = kotlin.math.round(targetHours * 60.0).toInt().coerceIn(15, 720)
+    viewModelScope.launch {
+      try {
+        repository.updateDailyGoal(currentUserId, minutes)
+        _actionMessage.value =
+          String.format(java.util.Locale.US, "Daily study goal set to %.1f hrs", minutes / 60.0)
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        _actionMessage.value = e.localizedMessage ?: "Failed to update daily study goal"
+      }
+    }
+  }
+
   fun addSubject(name: String, code: String, instructor: String, colorHex: Long) {
     if (name.isBlank()) {
       _actionMessage.value = "Subject name is required"

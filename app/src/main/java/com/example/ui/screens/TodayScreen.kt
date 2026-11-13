@@ -31,6 +31,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -48,11 +50,15 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,14 +75,19 @@ import com.example.data.model.TaskType
 import com.example.data.model.TimetableSlot
 import com.example.data.model.UiState
 import com.example.data.model.UserStats
+import com.example.ui.components.DailyGoalInputDialog
+import com.example.ui.components.DashboardDailyGoalRing
+import com.example.ui.components.StreakGamificationDialog
 import com.example.ui.components.TaskCategoryBadge
 import com.example.ui.components.adaptiveCategoryColor
 import com.example.ui.components.categoryIcon
 import com.example.ui.components.dayLabelShort
 import com.example.ui.components.formatDueSummary
 import com.example.ui.components.formatMinutesOfDay
+import com.example.ui.theme.AmberTertiaryLight
 import com.example.ui.theme.JetBrainsMonoFontFamily
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -97,6 +108,8 @@ fun TodayScreen(
   onCycleTheme: () -> Unit,
   onOpenSettings: () -> Unit,
   onOpenWeeklySummary: () -> Unit,
+  onOpenResearch: () -> Unit,
+  onUpdateDailyGoalHours: (Double) -> Unit,
   onStartQuickFocus: (subjectId: String, subjectName: String, taskId: String, taskTitle: String) -> Unit,
   onOpenTaskDetail: (String) -> Unit,
   onOpenSubjectDetail: (String) -> Unit,
@@ -112,10 +125,31 @@ fun TodayScreen(
   val tasks = (tasksState as? UiState.Success)?.data.orEmpty()
   val sessions = (sessionsState as? UiState.Success)?.data.orEmpty()
 
+  var showGoalDialog by remember { mutableStateOf(false) }
+  var showStreakDialog by remember { mutableStateOf(false) }
+
   val todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
   val todayFocusMinutes = sessions.filter { it.dateKey == todayKey }.sumOf { it.durationMinutes.toInt() }
-  val dailyGoal = (stats?.dailyGoalMinutes ?: 60L).toInt().coerceAtLeast(10)
-  val goalProgress = (todayFocusMinutes.toFloat() / dailyGoal.toFloat()).coerceIn(0f, 1f)
+  val dailyGoalMinutes = (stats?.dailyGoalMinutes ?: 60L).toInt().coerceAtLeast(15)
+  val studiedHours = todayFocusMinutes / 60f
+  val goalHours = dailyGoalMinutes / 60f
+  val currentStreak = (stats?.currentStreak ?: 0L).toInt()
+  val longestStreak = (stats?.longestStreak ?: 0L).toInt()
+
+  val last7Days =
+    remember(sessions) {
+      val keyFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+      val labelFmt = SimpleDateFormat("EEE", Locale.US)
+      val cal = Calendar.getInstance()
+      cal.add(Calendar.DAY_OF_YEAR, -6)
+      (0..6).map {
+        val key = keyFmt.format(cal.time)
+        val label = labelFmt.format(cal.time)
+        val mins = sessions.filter { it.dateKey == key }.sumOf { it.durationMinutes.toInt() }
+        cal.add(Calendar.DAY_OF_YEAR, 1)
+        Triple(key, label, mins)
+      }
+    }
 
   val daySlots = slots.filter { it.dayOfWeek.toInt() == selectedDayOfWeek }
   val pendingTasks = tasks.filter { !it.completed }
@@ -151,28 +185,47 @@ fun TodayScreen(
           )
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
           Surface(
-            color = MaterialTheme.colorScheme.tertiaryContainer,
+            color =
+              if (currentStreak > 0) MaterialTheme.colorScheme.tertiaryContainer
+              else MaterialTheme.colorScheme.surfaceVariant,
             shape = RoundedCornerShape(50),
+            modifier =
+              Modifier.heightIn(min = 48.dp)
+                .clip(RoundedCornerShape(50))
+                .clickable { showStreakDialog = true }
+                .testTag("dashboard_streak_badge"),
           ) {
             Row(
-              modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+              modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
               verticalAlignment = Alignment.CenterVertically,
             ) {
               Icon(
                 Icons.Rounded.LocalFireDepartment,
-                contentDescription = "Study streak",
-                tint = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier.size(18.dp),
+                contentDescription = "Study streak: $currentStreak days. Tap for milestones.",
+                tint =
+                  if (currentStreak > 0) AmberTertiaryLight
+                  else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(19.dp),
               )
               Spacer(modifier = Modifier.width(4.dp))
               Text(
-                text = "${stats?.currentStreak ?: 0}d",
+                text = "${currentStreak}d",
+                fontFamily = JetBrainsMonoFontFamily,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                color =
+                  if (currentStreak > 0) MaterialTheme.colorScheme.onTertiaryContainer
+                  else MaterialTheme.colorScheme.onSurfaceVariant,
               )
             }
+          }
+
+          IconButton(
+            onClick = onOpenResearch,
+            modifier = Modifier.size(48.dp).testTag("open_study_research_button"),
+          ) {
+            Icon(Icons.Rounded.TravelExplore, contentDescription = "Study web research")
           }
 
           IconButton(
@@ -229,7 +282,7 @@ fun TodayScreen(
       }
     }
 
-    // Hero Daily Focus Card
+    // Hero Daily Study Hour Goal Card with Progress Ring
     item {
       Box(
         modifier =
@@ -245,26 +298,70 @@ fun TodayScreen(
             )
             .padding(20.dp),
       ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
           Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
           ) {
-            Column {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
               Text(
-                text = "Today's Focus Pulse",
+                text = "Today's Study Goal",
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.White.copy(alpha = 0.9f),
               )
               Text(
-                text = "$todayFocusMinutes / $dailyGoal min",
+                text = String.format(Locale.US, "%.1f / %.1f hrs", studiedHours, goalHours),
                 fontFamily = JetBrainsMonoFontFamily,
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
               )
+              val remainingMinutes = (dailyGoalMinutes - todayFocusMinutes).coerceAtLeast(0)
+              Text(
+                text =
+                  if (todayFocusMinutes >= dailyGoalMinutes)
+                    "Daily goal reached! Your ${currentStreak}d streak is safe."
+                  else String.format(
+                    Locale.US,
+                    "%.1fh (%dm) left to hit today's target",
+                    remainingMinutes / 60f,
+                    remainingMinutes,
+                  ),
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.88f),
+              )
             }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            DashboardDailyGoalRing(
+              studiedHours = studiedHours,
+              goalHours = goalHours,
+              onClick = { showGoalDialog = true },
+            )
+          }
+
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+          ) {
+            OutlinedButton(
+              onClick = { showGoalDialog = true },
+              colors =
+                ButtonDefaults.outlinedButtonColors(
+                  contentColor = Color.White,
+                  containerColor = Color.White.copy(alpha = 0.14f),
+                ),
+              border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.45f)),
+              shape = RoundedCornerShape(14.dp),
+              modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("today_edit_goal_button"),
+            ) {
+              Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(modifier = Modifier.width(6.dp))
+              Text("Set Goal")
+            }
+
             Button(
               onClick = { onStartQuickFocus("", "General Study", "", "") },
               colors =
@@ -273,27 +370,13 @@ fun TodayScreen(
                   contentColor = MaterialTheme.colorScheme.primary,
                 ),
               shape = RoundedCornerShape(14.dp),
-              modifier = Modifier.heightIn(min = 48.dp).testTag("hero_start_focus_button"),
+              modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("hero_start_focus_button"),
             ) {
               Icon(Icons.Rounded.PlayArrow, contentDescription = null)
               Spacer(modifier = Modifier.width(4.dp))
               Text("Focus Now")
             }
           }
-
-          LinearProgressIndicator(
-            progress = { goalProgress },
-            color = Color.White,
-            trackColor = Color.White.copy(alpha = 0.25f),
-            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)),
-          )
-          Text(
-            text =
-              if (todayFocusMinutes >= dailyGoal) "Daily focus goal smashed! Keep the streak rolling."
-              else "${(dailyGoal - todayFocusMinutes).coerceAtLeast(0)} min left to hit today's study target.",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.White.copy(alpha = 0.9f),
-          )
         }
       }
     }
@@ -742,5 +825,27 @@ fun TodayScreen(
         }
       }
     }
+  }
+
+  if (showGoalDialog) {
+    DailyGoalInputDialog(
+      currentGoalMinutes = dailyGoalMinutes,
+      onDismiss = { showGoalDialog = false },
+      onConfirmHours = { hours ->
+        onUpdateDailyGoalHours(hours)
+        showGoalDialog = false
+      },
+    )
+  }
+
+  if (showStreakDialog) {
+    StreakGamificationDialog(
+      currentStreak = currentStreak,
+      longestStreak = longestStreak,
+      todayMinutes = todayFocusMinutes,
+      last7Days = last7Days,
+      onDismiss = { showStreakDialog = false },
+      onStartFocus = { onStartQuickFocus("", "General Study", "", "") },
+    )
   }
 }

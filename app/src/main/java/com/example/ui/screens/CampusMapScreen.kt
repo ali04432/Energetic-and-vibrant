@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.AddLocationAlt
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
@@ -42,15 +43,18 @@ import androidx.compose.material.icons.rounded.Directions
 import androidx.compose.material.icons.rounded.LocalCafe
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -93,6 +97,7 @@ import com.example.ui.theme.IndigoPrimaryLight
 import com.example.ui.theme.JetBrainsMonoFontFamily
 import com.example.ui.theme.MintSecondaryLight
 import com.example.ui.theme.ThemeMode
+import com.example.ui.viewmodel.MapsGroundingUiState
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
@@ -132,6 +137,9 @@ fun CampusMapScreen(
   spotsState: UiState<List<StudySpot>>,
   subjectsState: UiState<List<Subject>>,
   slotsState: UiState<List<TimetableSlot>>,
+  mapsGroundingState: MapsGroundingUiState,
+  onDiscoverNearbyPlaces: (query: String, latitude: Double, longitude: Double) -> Unit,
+  onClearMapsGrounding: () -> Unit,
   onAddStudySpot: (
     name: String,
     category: String,
@@ -165,6 +173,7 @@ fun CampusMapScreen(
   var searchQuery by remember { mutableStateOf("") }
   var searchStatusMessage by remember { mutableStateOf<String?>(null) }
   var pendingPinLatLng by remember { mutableStateOf<LatLng?>(null) }
+  var pendingPinName by remember { mutableStateOf("") }
   var pendingPinAddress by remember { mutableStateOf("") }
   var showPinDialog by remember { mutableStateOf(false) }
 
@@ -224,20 +233,26 @@ fun CampusMapScreen(
       else spots.filter { it.category == selectedCategory?.name }
     }
 
-  fun performGeocodeSearch(queryText: String) {
+  fun performGeocodeSearch(queryText: String, prefillName: String = "", openPinDialogOnFallback: Boolean = false) {
     val trimmed = queryText.trim()
     if (trimmed.isEmpty()) return
     scope.launch {
-      searchStatusMessage = "Searching \"$trimmed\"..."
+      searchStatusMessage = "Locating \"$trimmed\"..."
       val resolved = geocodeAddress(context, trimmed)
       if (resolved != null) {
         val (latLng, addrLabel) = resolved
         searchStatusMessage = addrLabel
         pendingPinLatLng = latLng
+        pendingPinName = prefillName.ifBlank { trimmed }
         pendingPinAddress = addrLabel
         cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(latLng, 15.8f))
+      } else if (openPinDialogOnFallback) {
+        pendingPinLatLng = cameraPositionState.position.target
+        pendingPinName = prefillName.ifBlank { trimmed }
+        pendingPinAddress = trimmed
+        showPinDialog = true
       } else {
-        searchStatusMessage = "No exact coordinates found. Long-press anywhere on the map to pin."
+        searchStatusMessage = "No exact coordinates found. Long-press or try AI Maps discovery."
       }
     }
   }
@@ -355,9 +370,24 @@ fun CampusMapScreen(
           Spacer(modifier = Modifier.width(6.dp))
           FilledTonalButton(
             onClick = { performGeocodeSearch(searchQuery) },
+            contentPadding = PaddingValues(horizontal = 12.dp),
             modifier = Modifier.heightIn(min = 48.dp).testTag("map_search_button"),
           ) {
             Text("Go")
+          }
+          Spacer(modifier = Modifier.width(4.dp))
+          FilledTonalButton(
+            onClick = {
+              val target = cameraPositionState.position.target
+              val discoveryPrompt = searchQuery.ifBlank { "quiet study libraries and cafes" }
+              onDiscoverNearbyPlaces(discoveryPrompt, target.latitude, target.longitude)
+            },
+            contentPadding = PaddingValues(horizontal = 10.dp),
+            modifier = Modifier.heightIn(min = 48.dp).testTag("map_ai_discover_button"),
+          ) {
+            Icon(Icons.Rounded.TravelExplore, contentDescription = "Discover with Google Maps AI", modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("AI")
           }
         }
       }
@@ -378,6 +408,33 @@ fun CampusMapScreen(
             onClick = { selectedCategory = if (selectedCategory == cat) null else cat },
             label = { Text("${cat.label} ($count)") },
             modifier = Modifier.testTag("map_filter_${cat.name.lowercase()}"),
+          )
+        }
+      }
+
+      LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val discoveryPresets =
+          listOf(
+            "Quiet Libraries" to "quiet public and university libraries for studying",
+            "Study Cafes" to "quiet cafes with Wi-Fi and power outlets for studying",
+            "Campus Study Halls" to "campus study halls and coworking spaces",
+          )
+        items(discoveryPresets) { (chipLabel, promptText) ->
+          AssistChip(
+            onClick = {
+              searchQuery = chipLabel
+              val target = cameraPositionState.position.target
+              onDiscoverNearbyPlaces(promptText, target.latitude, target.longitude)
+            },
+            leadingIcon = {
+              Icon(
+                Icons.Rounded.TravelExplore,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+              )
+            },
+            label = { Text(chipLabel) },
+            modifier = Modifier.testTag("map_ai_chip_${chipLabel.lowercase().replace(" ", "_")}"),
           )
         }
       }
@@ -403,6 +460,155 @@ fun CampusMapScreen(
             if (pendingPinLatLng != null) {
               TextButton(onClick = { showPinDialog = true }) {
                 Text("Pin Spot")
+              }
+            }
+          }
+        }
+      }
+
+      val showMapsOverlay =
+        mapsGroundingState.isLoading ||
+          mapsGroundingState.summaryText.isNotBlank() ||
+          mapsGroundingState.places.isNotEmpty() ||
+          mapsGroundingState.errorMessage != null
+
+      if (showMapsOverlay) {
+        Card(
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)),
+          shape = RoundedCornerShape(20.dp),
+          elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+          modifier = Modifier.fillMaxWidth().heightIn(max = 270.dp).testTag("map_ai_results_card"),
+        ) {
+          Column(
+            modifier = Modifier.padding(14.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+              ) {
+                Icon(
+                  Icons.Rounded.TravelExplore,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.primary,
+                  modifier = Modifier.size(18.dp),
+                )
+                Text(
+                  text = "Google Maps Study Picks",
+                  style = MaterialTheme.typography.titleSmall,
+                  fontWeight = FontWeight.SemiBold,
+                )
+              }
+              IconButton(
+                onClick = onClearMapsGrounding,
+                modifier = Modifier.size(48.dp).testTag("map_ai_results_close_button"),
+              ) {
+                Icon(Icons.Rounded.Close, contentDescription = "Dismiss Maps recommendations")
+              }
+            }
+
+            if (mapsGroundingState.isLoading) {
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+              ) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                Text(
+                  text = "Discovering nearby spots with Google Maps...",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+            }
+
+            mapsGroundingState.errorMessage?.let { err ->
+              Text(
+                text = err,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+              )
+            }
+
+            if (mapsGroundingState.summaryText.isNotBlank()) {
+              Text(
+                text = mapsGroundingState.summaryText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+              )
+            }
+
+            mapsGroundingState.places.forEachIndexed { index, place ->
+              Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth(),
+              ) {
+                Column(
+                  modifier = Modifier.padding(10.dp),
+                  verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                  Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                  ) {
+                    Icon(
+                      Icons.Rounded.Place,
+                      contentDescription = null,
+                      tint = MaterialTheme.colorScheme.secondary,
+                      modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                      text = place.title,
+                      style = MaterialTheme.typography.titleSmall,
+                      maxLines = 2,
+                      overflow = TextOverflow.Ellipsis,
+                    )
+                  }
+                  Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                  ) {
+                    OutlinedButton(
+                      onClick = {
+                        performGeocodeSearch(
+                          queryText = place.title,
+                          prefillName = place.title,
+                          openPinDialogOnFallback = true,
+                        )
+                      },
+                      contentPadding = PaddingValues(horizontal = 10.dp),
+                      modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("map_ai_locate_$index"),
+                    ) {
+                      Icon(Icons.Rounded.AddLocationAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                      Spacer(modifier = Modifier.width(4.dp))
+                      Text("Locate & Pin", maxLines = 1)
+                    }
+                    if (place.uri.isNotBlank()) {
+                      FilledTonalButton(
+                        onClick = {
+                          runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(place.uri)))
+                          }
+                        },
+                        contentPadding = PaddingValues(horizontal = 10.dp),
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("map_ai_open_$index"),
+                      ) {
+                        Icon(
+                          Icons.AutoMirrored.Rounded.OpenInNew,
+                          contentDescription = "Open ${place.title} in Google Maps",
+                          modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Maps")
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -441,6 +647,7 @@ fun CampusMapScreen(
         onClick = {
           val center = cameraPositionState.position.target
           pendingPinLatLng = center
+          pendingPinName = ""
           scope.launch {
             pendingPinAddress = reverseGeocodeAddress(context, center)
             showPinDialog = true
@@ -567,12 +774,17 @@ fun CampusMapScreen(
     PinStudySpotDialog(
       initialLat = targetLatLng.latitude,
       initialLng = targetLatLng.longitude,
+      initialName = pendingPinName,
       initialAddress = pendingPinAddress,
       subjects = subjects,
-      onDismiss = { showPinDialog = false },
+      onDismiss = {
+        showPinDialog = false
+        pendingPinName = ""
+      },
       onConfirm = { name, category, address, notes, subjectId, lat, lng ->
         onAddStudySpot(name, category, address, notes, subjectId, lat, lng)
         pendingPinLatLng = null
+        pendingPinName = ""
         showPinDialog = false
       },
     )
@@ -690,6 +902,7 @@ private fun SelectedSpotCard(
 private fun PinStudySpotDialog(
   initialLat: Double,
   initialLng: Double,
+  initialName: String = "",
   initialAddress: String,
   subjects: List<Subject>,
   onDismiss: () -> Unit,
@@ -703,9 +916,9 @@ private fun PinStudySpotDialog(
     lng: Double,
   ) -> Unit,
 ) {
-  var name by remember { mutableStateOf("") }
+  var name by remember(initialName) { mutableStateOf(initialName) }
   var category by remember { mutableStateOf(SpotCategory.LIBRARY) }
-  var address by remember { mutableStateOf(initialAddress) }
+  var address by remember(initialAddress) { mutableStateOf(initialAddress) }
   var notes by remember { mutableStateOf("") }
   var selectedSubjectId by remember { mutableStateOf("") }
   val lat by remember { mutableDoubleStateOf(initialLat) }

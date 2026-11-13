@@ -93,6 +93,7 @@ import com.example.ui.components.AddSubjectDialog
 import com.example.ui.components.AddTaskDialog
 import com.example.ui.components.AddTimetableSlotDialog
 import com.example.ui.components.LiveVoiceCoachOverlay
+import com.example.ui.components.StudyResearchSheet
 import com.example.ui.navigation.AnalyticsRoute
 import com.example.ui.navigation.FocusRoute
 import com.example.ui.navigation.MapRoute
@@ -114,6 +115,7 @@ import com.example.ui.screens.TodayScreen
 import com.example.ui.screens.WeeklySummaryScreen
 import com.example.ui.theme.StudyPulseTheme
 import com.example.ui.viewmodel.FocusTimerViewModel
+import com.example.ui.viewmodel.StudyGroundingViewModel
 import com.example.ui.viewmodel.StudyPlannerViewModel
 import com.example.ui.viewmodel.VoiceCoachViewModel
 import com.example.ui.viewmodel.VoiceSessionStatus
@@ -257,6 +259,9 @@ fun MainStudyWorkspace(
         },
     )
 
+  val groundingViewModel: StudyGroundingViewModel =
+    viewModel(key = "grounding_$currentUserId")
+
   val userStatsState by plannerViewModel.userStatsState.collectAsStateWithLifecycle()
   val subjectsState by plannerViewModel.subjectsState.collectAsStateWithLifecycle()
   val slotsState by plannerViewModel.slotsState.collectAsStateWithLifecycle()
@@ -270,6 +275,8 @@ fun MainStudyWorkspace(
   val actionMessage by plannerViewModel.actionMessage.collectAsStateWithLifecycle()
   val timerState by focusViewModel.uiState.collectAsStateWithLifecycle()
   val voiceState by voiceViewModel.uiState.collectAsStateWithLifecycle()
+  val searchGroundingState by groundingViewModel.searchState.collectAsStateWithLifecycle()
+  val mapsGroundingState by groundingViewModel.mapsState.collectAsStateWithLifecycle()
 
   LaunchedEffect(preferences.focusMinutes, preferences.shortBreakMinutes, preferences.longBreakMinutes) {
     focusViewModel.syncDurations(
@@ -305,6 +312,9 @@ fun MainStudyWorkspace(
   var showAddSlot by remember { mutableStateOf(false) }
   var showAddTask by remember { mutableStateOf(false) }
   var showVoiceCoach by remember { mutableStateOf(false) }
+  var showResearchSheet by remember { mutableStateOf(false) }
+  var researchInitialQuery by remember { mutableStateOf("") }
+  var researchSubjectHint by remember { mutableStateOf("") }
 
   val navController = rememberNavController()
   val backStackEntry by navController.currentBackStackEntryAsState()
@@ -456,6 +466,12 @@ fun MainStudyWorkspace(
                   onCycleTheme = plannerViewModel::cycleThemeMode,
                   onOpenSettings = { navController.navigate(SettingsRoute) },
                   onOpenWeeklySummary = { navController.navigate(WeeklySummaryRoute) },
+                  onOpenResearch = {
+                    researchInitialQuery = ""
+                    researchSubjectHint = ""
+                    showResearchSheet = true
+                  },
+                  onUpdateDailyGoalHours = plannerViewModel::updateDailyGoalHours,
                   onStartQuickFocus = { subjId, subjName, taskId, taskTitle ->
                     focusViewModel.linkStudyTarget(subjId, subjName, taskId, taskTitle)
                     navigateTopLevel(FocusRoute)
@@ -516,6 +532,9 @@ fun MainStudyWorkspace(
                   spotsState = spotsState,
                   subjectsState = subjectsState,
                   slotsState = slotsState,
+                  mapsGroundingState = mapsGroundingState,
+                  onDiscoverNearbyPlaces = groundingViewModel::findCampusStudyPlaces,
+                  onClearMapsGrounding = groundingViewModel::clearMapsResults,
                   onAddStudySpot = { name, category, address, notes, subjectId, lat, lng ->
                     plannerViewModel.addStudySpot(
                       name = name,
@@ -608,6 +627,11 @@ fun MainStudyWorkspace(
                     )
                     navigateTopLevel(FocusRoute)
                   },
+                  onResearchTask = { task ->
+                    researchInitialQuery = "${task.title} key concepts study guide"
+                    researchSubjectHint = task.subjectName
+                    showResearchSheet = true
+                  },
                   onDeleteTask = plannerViewModel::deleteTask,
                 )
               }
@@ -621,7 +645,7 @@ fun MainStudyWorkspace(
                   onBack = { navController.popBackStack() },
                   onSelectTheme = plannerViewModel::setThemeMode,
                   onSaveDurations = plannerViewModel::updatePomodoroDurations,
-                  onUpdateDailyGoal = plannerViewModel::updateDailyGoal,
+                  onUpdateDailyGoalHours = plannerViewModel::updateDailyGoalHours,
                   onUpdateReminderLead = plannerViewModel::updateDefaultReminderLead,
                   onSignOut = onSignOut,
                 )
@@ -684,6 +708,19 @@ fun MainStudyWorkspace(
         }
         plannerViewModel.addTask(subj, title, notes, type, priority, dueMillis, leadMinutes)
         showAddTask = false
+      },
+    )
+  }
+
+  if (showResearchSheet) {
+    StudyResearchSheet(
+      state = searchGroundingState,
+      initialQuery = researchInitialQuery,
+      subjectHint = researchSubjectHint,
+      onSearch = groundingViewModel::searchStudyTopic,
+      onDismiss = {
+        showResearchSheet = false
+        groundingViewModel.clearSearchResults()
       },
     )
   }
